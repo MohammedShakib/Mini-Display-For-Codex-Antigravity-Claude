@@ -427,25 +427,83 @@
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
-      padding: 1.15rem;
+      padding: 0.9rem;
       cursor: pointer;
       position: relative;
-      transition: all 0.25s ease;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.95rem;
     }
 
     .theme-card:hover {
-      border-color: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.25);
       transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
 
     .theme-card.active {
       border-color: var(--cyan);
-      background: rgba(0, 212, 255, 0.06);
+      background: rgba(0, 212, 255, 0.08);
       box-shadow: 0 0 25px var(--cyan-glow), inset 0 0 0 1px var(--cyan);
+    }
+
+    .theme-mini-bezel {
+      width: 78px;
+      height: 78px;
+      flex-shrink: 0;
+      background: #020408;
+      border-radius: 12px;
+      padding: 3px;
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8), inset 0 0 8px rgba(0, 0, 0, 0.9);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .theme-card:hover .theme-mini-bezel {
+      transform: scale(1.05);
+      border-color: rgba(0, 212, 255, 0.5);
+      box-shadow: 0 0 15px var(--cyan-glow);
+    }
+
+    .theme-card.active .theme-mini-bezel {
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    .theme-mini-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      object-fit: cover;
+      display: block;
+      background: #000;
+    }
+
+    .theme-mini-glare {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 80%);
+      pointer-events: none;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+    }
+
+    .theme-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      flex: 1;
+      min-width: 0;
     }
 
     .theme-card-header {
@@ -458,8 +516,11 @@
     .theme-name {
       font-family: var(--font-display);
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .theme-card.active .theme-name {
@@ -467,16 +528,19 @@
     }
 
     .theme-desc {
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       color: var(--text-secondary);
-      line-height: 1.4;
-      flex: 1;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .theme-swatch {
-      height: 6px;
+      height: 5px;
       border-radius: var(--radius-full);
-      margin-top: 0.25rem;
+      margin-top: 0.15rem;
     }
 
     .swatch-default {
@@ -821,42 +885,66 @@
           <div class="theme-grid">
             <!-- Theme 1: Default Pro Ultra -->
             <div class="theme-card active" id="theme-card-default" onclick="selectTheme('default')">
-              <div class="theme-card-header">
-                <span class="theme-name">Pro Ultra (Dark)</span>
-                <span class="badge-active">Default · Active</span>
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_default.jpg" alt="Pro Ultra Theme" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
               </div>
-              <p class="theme-desc">Obsidian dark glassmorphism with 0–100% meters, dynamic alert red engine, and active AI model badge.</p>
-              <div class="theme-swatch swatch-default"></div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Pro Ultra (Dark)</span>
+                  <span class="badge-active">Active</span>
+                </div>
+                <p class="theme-desc">Obsidian glassmorphism with 0–100% meters & active AI badge.</p>
+                <div class="theme-swatch swatch-default"></div>
+              </div>
             </div>
 
             <!-- Theme 2: Cyberpunk Neon -->
             <div class="theme-card" id="theme-card-cyberpunk" onclick="selectTheme('cyberpunk')">
-              <div class="theme-card-header">
-                <span class="theme-name">Cyberpunk Neon</span>
-                <span class="badge-soon">Coming Soon</span>
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_cyberpunk.jpg" alt="Cyberpunk Neon Theme" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
               </div>
-              <p class="theme-desc">High-voltage neon pink & cyan accents with glowing holographic gauge indicators.</p>
-              <div class="theme-swatch swatch-cyberpunk"></div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Cyberpunk Neon</span>
+                  <span class="badge-soon">Preview</span>
+                </div>
+                <p class="theme-desc">High-voltage neon pink & cyan HUD holographic indicators.</p>
+                <div class="theme-swatch swatch-cyberpunk"></div>
+              </div>
             </div>
 
             <!-- Theme 3: Minimal Studio -->
             <div class="theme-card" id="theme-card-minimal" onclick="selectTheme('minimal')">
-              <div class="theme-card-header">
-                <span class="theme-name">Minimal Studio</span>
-                <span class="badge-soon">Coming Soon</span>
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_minimal.jpg" alt="Minimal Studio Theme" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
               </div>
-              <p class="theme-desc">High-contrast monochrome Swiss typography with subtle dot matrix indicators.</p>
-              <div class="theme-swatch swatch-minimal"></div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Minimal Studio</span>
+                  <span class="badge-soon">Preview</span>
+                </div>
+                <p class="theme-desc">Monochrome Swiss typography with sleek minimalist metric bars.</p>
+                <div class="theme-swatch swatch-minimal"></div>
+              </div>
             </div>
 
             <!-- Theme 4: Retro Terminal -->
             <div class="theme-card" id="theme-card-terminal" onclick="selectTheme('terminal')">
-              <div class="theme-card-header">
-                <span class="theme-name">Matrix Terminal</span>
-                <span class="badge-soon">Coming Soon</span>
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_matrix.jpg" alt="Matrix Terminal Theme" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
               </div>
-              <p class="theme-desc">Classic green-phosphor CRT monospace terminal with ASCII meter tracks.</p>
-              <div class="theme-swatch swatch-terminal"></div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Matrix Terminal</span>
+                  <span class="badge-soon">Preview</span>
+                </div>
+                <p class="theme-desc">Green-phosphor CRT terminal with monospace ASCII meters.</p>
+                <div class="theme-swatch swatch-terminal"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -953,6 +1041,13 @@
       setTimeout(() => toast.classList.remove('show'), 3200);
     }
 
+    const themePreviews = {
+      'default': null,
+      'cyberpunk': '/assets/theme_preview_cyberpunk.jpg',
+      'minimal': '/assets/theme_preview_minimal.jpg',
+      'terminal': '/assets/theme_preview_matrix.jpg'
+    };
+
     function selectTheme(themeId) {
       currentSelectedTheme = themeId;
       document.querySelectorAll('.theme-card').forEach(card => card.classList.remove('active'));
@@ -961,16 +1056,21 @@
 
       const labelMap = {
         'default': 'Active: Pro Ultra (Dark)',
-        'cyberpunk': 'Selected: Cyberpunk Neon (Coming Soon)',
-        'minimal': 'Selected: Minimal Studio (Coming Soon)',
-        'terminal': 'Selected: Matrix Terminal (Coming Soon)'
+        'cyberpunk': 'Previewing: Cyberpunk Neon',
+        'minimal': 'Previewing: Minimal Studio',
+        'terminal': 'Previewing: Matrix Terminal'
       };
       document.getElementById('current-theme-label').textContent = labelMap[themeId] || themeId;
 
-      if (themeId === 'default') {
-        showToast('Default Pro Ultra theme is active on device!');
+      const liveImg = document.getElementById('live-screen-img');
+      const screenLabel = document.getElementById('current-screen-name');
+      if (themePreviews[themeId]) {
+        liveImg.src = themePreviews[themeId];
+        screenLabel.textContent = 'PREVIEW: ' + themeId.toUpperCase();
+        showToast(`Display preview loaded: ${themeId.toUpperCase()}`);
       } else {
-        showToast(`Theme selected: ${themeId.toUpperCase()} (Coming in next UI update)`);
+        liveImg.src = '/api/preview?t=' + Date.now();
+        showToast('Switched to Live Device stream!');
       }
 
       // Automatically sync theme selection to config
@@ -987,13 +1087,13 @@
         if (!res.ok) return;
         const data = await res.json();
         
-        // Live Screen Image
-        const img = document.getElementById('live-screen-img');
-        img.src = '/api/preview?t=' + Date.now();
-        
-        // Current Page Name
-        const pageName = data.active_page || 'Syncing';
-        document.getElementById('current-screen-name').textContent = pageName.toUpperCase();
+        // Live Screen Image (only auto-refresh if on default live mode)
+        if (currentSelectedTheme === 'default') {
+          const img = document.getElementById('live-screen-img');
+          img.src = '/api/preview?t=' + Date.now();
+          const pageName = data.active_page || 'Syncing';
+          document.getElementById('current-screen-name').textContent = pageName.toUpperCase();
+        }
         document.getElementById('last-update-time').textContent = new Date().toLocaleTimeString();
 
         // Connection
