@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.log
+codex_usage.jpg
+temp_*.jpg
+*_test.jpg
+.vscode/
