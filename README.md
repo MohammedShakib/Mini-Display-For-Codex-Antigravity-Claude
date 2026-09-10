@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/syncai_logo.png" width="280" alt="SyncAI Logo" style="border-radius: 12px;"/>
+</p>
+
 # SyncAI — Smart Desk Display for Codex & Antigravity IDE
 
 A real-time AI quota usage dashboard, telemetry monitor, and smart screen controller for the 240x240 LCD display.
@@ -39,13 +43,20 @@ Seamlessly tracks, visualizes, and rotates token limits and consumption for **Op
 
 ```
 SyncAI/
-├── assets/                          # Brand logos and high-resolution screen previews
+├── assets/                          # Brand logos, web dashboard assets, and screen previews
+│   ├── syncai_logo.png              # Official full SyncAI logo
+│   ├── syncai_icon.png              # High-res transparent S-icon (favicon & header badge)
+│   ├── syncai_logo_dark.png         # Dark-mode optimized logo
+│   ├── splash_syncai.jpg            # 240x240 LCD hardware splash screen
 │   ├── codex_logo.png
 │   ├── antigravity_logo.png
 │   ├── preview_codex_240.jpg
 │   ├── preview_antigravity_claude_240.jpg
 │   ├── preview_antigravity_gemini_240.jpg
-│   └── codex_usage_red_preview.jpg
+│   └── web_dashboard_preview.png
+├── web/                             # Local Web Control Dashboard
+│   └── index.html                   # Glassmorphic control UI
+├── web_server.py                    # Flask server for control dashboard & live stream
 ├── docs/                            # Hardware user manuals and video guides
 │   ├── Video tutorials +Manual.docx
 │   ├── time always 00_00 1970.docx
@@ -54,6 +65,7 @@ SyncAI/
 │   └── SDPro_V1.0.6_20260525_174828.bin
 ├── codex_limit_clock.py             # Main controller, quota fetcher, image renderer & uploader
 ├── start_codex_limit_clock.ps1      # Background auto-restart runner script
+├── config.json                      # Persistent live configuration
 ├── .gitignore
 └── README.md
 ```

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SyncAI — Control Dashboard</title>
+  <link rel="icon" type="image/png" href="/assets/syncai_icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -25,7 +26,7 @@
       --emerald-glow: rgba(16, 185, 129, 0.3);
       --amber: #f59e0b;
       --red: #ef4444;
-      --red-glow: rgba(239, 68, 68, 0.4);
+      --red-glow: rgba(239, 68, 68, 0.3);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 20px;
@@ -43,22 +44,25 @@
     }
 
     body {
-      background: var(--bg-base);
+      background-color: var(--bg-base);
       color: var(--text-primary);
       font-family: var(--font-body);
       min-height: 100vh;
-      overflow-x: hidden;
-      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
       background-image: 
-        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 212, 255, 0.12), transparent 70%),
-        radial-gradient(ellipse 60% 40% at 85% 80%, rgba(168, 85, 247, 0.08), transparent 60%),
-        radial-gradient(ellipse 50% 50% at 15% 50%, rgba(16, 185, 129, 0.05), transparent 50%);
+        radial-gradient(circle at 15% 10%, rgba(0, 212, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(16, 22, 34, 0.5) 0%, transparent 100%);
+      background-attachment: fixed;
+      line-height: 1.5;
     }
 
     .container {
-      max-width: 1200px;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 2rem 1.5rem 4rem;
+      padding: 2.5rem 2rem;
+      width: 100%;
     }
 
     /* --- Header --- */
@@ -67,8 +71,6 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 2.5rem;
-      padding-bottom: 1.5rem;
-      border-bottom: 1px solid var(--border-subtle);
     }
 
     .brand {
@@ -78,20 +80,30 @@
     }
 
     .brand-icon {
-      width: 44px;
-      height: 44px;
+      width: 46px;
+      height: 46px;
       border-radius: var(--radius-md);
-      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      background: rgba(16, 24, 40, 0.85);
+      border: 1px solid rgba(0, 212, 255, 0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 20px var(--cyan-glow);
+      box-shadow: 0 0 25px rgba(0, 212, 255, 0.25);
+      overflow: hidden;
+      padding: 6px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
     }
 
-    .brand-icon svg {
-      width: 24px;
-      height: 24px;
-      fill: #fff;
+    .brand-icon:hover {
+      transform: scale(1.06) rotate(3deg);
+      box-shadow: 0 0 35px rgba(0, 212, 255, 0.45);
+    }
+
+    .brand-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 6px rgba(0, 212, 255, 0.4));
     }
 
     .brand-text h1 {
@@ -669,9 +681,7 @@
     <header>
       <div class="brand">
         <div class="brand-icon">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-          </svg>
+          <img src="/assets/syncai_icon.png" alt="SyncAI Logo">
         </div>
         <div class="brand-text">
           <h1>SyncAI</h1>
