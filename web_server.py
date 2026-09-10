@@ -101,6 +101,7 @@ def config_endpoint():
             updated["show_splash"] = bool(payload["show_splash"])
         if "selected_theme" in payload:
             updated["selected_theme"] = str(payload["selected_theme"]).strip()
+            updated["force_refresh"] = True
 
         saved = write_config(updated)
         return jsonify({"status": "ok", "config": saved})

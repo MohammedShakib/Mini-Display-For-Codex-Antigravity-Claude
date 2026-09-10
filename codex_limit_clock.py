@@ -13,6 +13,8 @@ from urllib.parse import quote
 
 from PIL import Image, ImageDraw, ImageFont
 
+from theme_renderer import render_custom_theme
+
 
 DEFAULT_CLOCK_IP = "192.168.0.58"
 OUTPUT_NAME = "codex_usage.jpg"
@@ -36,6 +38,7 @@ def load_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
+        "selected_theme": "default",
     }
     if CONFIG_PATH.exists():
         try:
@@ -738,28 +741,128 @@ def trigger_clock_refresh(clock_ip):
         pass
 
 
-def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_splash=True, alert_threshold=80.0):
+def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_splash=True, alert_threshold=80.0, theme_id=None):
     summary = ""
     dash_temp_path = output_path.with_name("temp_" + output_path.name)
     
+    if not theme_id or theme_id == "default":
+        theme_id = load_config().get("selected_theme", "default")
+
     # 1. Pre-render the main dashboard image FIRST so there is zero render delay after splash
-    if screen_name == "codex":
-        render_codex_screen(data_state["codex"]["data"], data_state["codex"]["state"], data_state["codex"]["time"], dash_temp_path, alert_threshold)
-        summary = "codex"
-    elif screen_name == "codex_offline":
-        render_offline_screen(LOGO_NAME, "Codex", data_state["codex"]["time"], dash_temp_path)
-        summary = "codex offline"
-    elif screen_name == "ag_gemini":
-        data = data_state["ag"]["data"]["groups"]["gemini"]
-        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
-        summary = "ag_gemini"
-    elif screen_name == "ag_claude":
-        data = data_state["ag"]["data"]["groups"]["claude_gpt"]
-        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
-        summary = "ag_claude"
-    elif screen_name == "ag_offline":
-        render_offline_screen(ANTIGRAVITY_LOGO_NAME, "Anti Gravity", data_state["ag"]["time"], dash_temp_path)
-        summary = "ag offline"
+    if theme_id and theme_id != "default":
+        if screen_name == "codex":
+            codex_data = data_state["codex"]["data"] or {}
+            used_p = codex_data.get("primary_percent")
+            used_w = codex_data.get("weekly_percent")
+            reset_ts = codex_data.get("primary_reset")
+            reset_str = "Reset --"
+            if reset_ts:
+                try:
+                    reset_str = f"Reset {datetime.fromtimestamp(int(reset_ts)).strftime('%I:%M %p').lstrip('0')}"
+                except Exception:
+                    pass
+            render_custom_theme(
+                theme_id=theme_id,
+                logo_path=Path(__file__).with_name(LOGO_NAME),
+                model_label="CODEX",
+                used_p=used_p,
+                used_w=used_w,
+                is_offline=(data_state["codex"]["state"] == "offline"),
+                is_stale=(data_state["codex"]["state"] == "stale"),
+                last_success_ts=data_state["codex"]["time"],
+                output_path=dash_temp_path,
+                alert_threshold=alert_threshold,
+                reset_str=reset_str
+            )
+            summary = f"codex [{theme_id}]"
+        elif screen_name == "codex_offline":
+            render_custom_theme(
+                theme_id=theme_id,
+                logo_path=Path(__file__).with_name(LOGO_NAME),
+                model_label="CODEX",
+                used_p=None,
+                used_w=None,
+                is_offline=True,
+                is_stale=False,
+                last_success_ts=data_state["codex"]["time"],
+                output_path=dash_temp_path,
+                alert_threshold=alert_threshold,
+                reset_str="Offline"
+            )
+            summary = f"codex offline [{theme_id}]"
+        elif screen_name == "ag_gemini":
+            data = (data_state["ag"]["data"] or {}).get("groups", {}).get("gemini", {})
+            rem_p = data.get("five_hour_remaining")
+            rem_w = data.get("weekly_remaining")
+            used_p = (100.0 - rem_p) if rem_p is not None else None
+            used_w = (100.0 - rem_w) if rem_w is not None else None
+            render_custom_theme(
+                theme_id=theme_id,
+                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
+                model_label="GEMINI",
+                used_p=used_p,
+                used_w=used_w,
+                is_offline=(data_state["ag"]["state"] == "offline"),
+                is_stale=(data_state["ag"]["state"] == "stale"),
+                last_success_ts=data_state["ag"]["time"],
+                output_path=dash_temp_path,
+                alert_threshold=alert_threshold,
+                reset_str="5H Limit"
+            )
+            summary = f"ag_gemini [{theme_id}]"
+        elif screen_name == "ag_claude":
+            data = (data_state["ag"]["data"] or {}).get("groups", {}).get("claude_gpt", {})
+            rem_p = data.get("five_hour_remaining")
+            rem_w = data.get("weekly_remaining")
+            used_p = (100.0 - rem_p) if rem_p is not None else None
+            used_w = (100.0 - rem_w) if rem_w is not None else None
+            render_custom_theme(
+                theme_id=theme_id,
+                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
+                model_label="CLAUDE/GPT",
+                used_p=used_p,
+                used_w=used_w,
+                is_offline=(data_state["ag"]["state"] == "offline"),
+                is_stale=(data_state["ag"]["state"] == "stale"),
+                last_success_ts=data_state["ag"]["time"],
+                output_path=dash_temp_path,
+                alert_threshold=alert_threshold,
+                reset_str="5H Limit"
+            )
+            summary = f"ag_claude [{theme_id}]"
+        elif screen_name == "ag_offline":
+            render_custom_theme(
+                theme_id=theme_id,
+                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
+                model_label="ANTI GRAVITY",
+                used_p=None,
+                used_w=None,
+                is_offline=True,
+                is_stale=False,
+                last_success_ts=data_state["ag"]["time"],
+                output_path=dash_temp_path,
+                alert_threshold=alert_threshold,
+                reset_str="Offline"
+            )
+            summary = f"ag offline [{theme_id}]"
+    else:
+        if screen_name == "codex":
+            render_codex_screen(data_state["codex"]["data"], data_state["codex"]["state"], data_state["codex"]["time"], dash_temp_path, alert_threshold)
+            summary = "codex"
+        elif screen_name == "codex_offline":
+            render_offline_screen(LOGO_NAME, "Codex", data_state["codex"]["time"], dash_temp_path)
+            summary = "codex offline"
+        elif screen_name == "ag_gemini":
+            data = data_state["ag"]["data"]["groups"]["gemini"]
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
+            summary = "ag_gemini"
+        elif screen_name == "ag_claude":
+            data = data_state["ag"]["data"]["groups"]["claude_gpt"]
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
+            summary = "ag_claude"
+        elif screen_name == "ag_offline":
+            render_offline_screen(ANTIGRAVITY_LOGO_NAME, "Anti Gravity", data_state["ag"]["time"], dash_temp_path)
+            summary = "ag offline"
 
     # 2. Show splash transition if enabled (targeting exact ~0.5s screen visible duration)
     if show_splash:
@@ -1012,11 +1115,12 @@ def main():
         # Sleep in 1-second ticks so changes in config.json or refresh triggers apply promptly
         sleep_interval = max(1.0, loop_interval - 0.8) if show_splash else loop_interval
         start_sleep = time.time()
+        initial_theme = config.get("selected_theme", "default")
         while time.time() - start_sleep < sleep_interval:
             time.sleep(0.5)
-            # Check if a refresh was requested via config
+            # Check if a refresh was requested via config or if theme changed
             new_conf = load_config()
-            if new_conf.get("force_refresh"):
+            if new_conf.get("force_refresh") or new_conf.get("selected_theme", "default") != initial_theme:
                 # Clear flag and break out to refresh immediately
                 new_conf.pop("force_refresh", None)
                 try:
@@ -1025,7 +1129,6 @@ def main():
                 except Exception:
                     pass
                 break
-
 
 
 if __name__ == "__main__":
