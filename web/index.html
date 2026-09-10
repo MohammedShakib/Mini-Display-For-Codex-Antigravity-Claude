@@ -411,6 +411,18 @@
     }
 
     /* --- Theme Selector Cards --- */
+    .theme-section-label {
+      grid-column: 1 / -1;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.15rem 0 0.4rem;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 0.1rem;
+    }
+
     .theme-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -882,7 +894,9 @@
             <span style="font-size: 0.8rem; color: var(--cyan); font-family: var(--font-mono);" id="current-theme-label">Active: Pro Ultra (Dark)</span>
           </div>
 
-          <div class="theme-grid">
+          <!-- Section: Base themes -->
+          <div class="theme-section-label" style="margin-bottom: 0.75rem; font-size:0.72rem; color: var(--text-muted); letter-spacing: 0.1em;">Base Themes</div>
+          <div class="theme-grid" style="margin-bottom: 1.25rem;">
             <!-- Theme 1: Default Pro Ultra -->
             <div class="theme-card active" id="theme-card-default" onclick="selectTheme('default')">
               <div class="theme-mini-bezel">
@@ -931,7 +945,7 @@
               </div>
             </div>
 
-            <!-- Theme 4: Retro Terminal -->
+            <!-- Theme 4: Matrix Terminal -->
             <div class="theme-card" id="theme-card-terminal" onclick="selectTheme('terminal')">
               <div class="theme-mini-bezel">
                 <img src="/assets/theme_preview_matrix.jpg" alt="Matrix Terminal Theme" class="theme-mini-screen">
@@ -944,6 +958,90 @@
                 </div>
                 <p class="theme-desc">Green-phosphor CRT terminal with monospace ASCII meters.</p>
                 <div class="theme-swatch swatch-terminal"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Codex Clock Designs -->
+          <div style="margin-bottom: 0.75rem; font-size:0.72rem; color: var(--text-muted); letter-spacing: 0.1em; font-family: var(--font-mono); border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.4rem;">Codex Clock Designs</div>
+          <div class="theme-grid">
+            <!-- Codex Theme 1: Orbital Rings -->
+            <div class="theme-card" id="theme-card-orbital" onclick="selectTheme('orbital')">
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_orbital.jpg" alt="Orbital Rings" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
+              </div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Orbital Rings</span>
+                  <span class="badge-soon">New</span>
+                </div>
+                <p class="theme-desc">Dual concentric arc meters with Codex logo glowing center.</p>
+                <div class="theme-swatch" style="background: linear-gradient(90deg, #00b4ff, #00dc78);"></div>
+              </div>
+            </div>
+
+            <!-- Codex Theme 2: Arc Dome -->
+            <div class="theme-card" id="theme-card-dome" onclick="selectTheme('dome')">
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_dome.jpg" alt="Arc Dome" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
+              </div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Arc Dome</span>
+                  <span class="badge-soon">New</span>
+                </div>
+                <p class="theme-desc">Half-dome semicircle arc gauge with large dominant 5H readout.</p>
+                <div class="theme-swatch" style="background: linear-gradient(90deg, #00b4ff, #0077d6);"></div>
+              </div>
+            </div>
+
+            <!-- Codex Theme 3: Twin Circles -->
+            <div class="theme-card" id="theme-card-twin" onclick="selectTheme('twin')">
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_twin.jpg" alt="Twin Circles" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
+              </div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Twin Circles</span>
+                  <span class="badge-soon">New</span>
+                </div>
+                <p class="theme-desc">Two side-by-side circular progress rings for 5H & Weekly.</p>
+                <div class="theme-swatch" style="background: linear-gradient(90deg, #00baff, #0099ee);"></div>
+              </div>
+            </div>
+
+            <!-- Codex Theme 4: Space HUD -->
+            <div class="theme-card" id="theme-card-hud" onclick="selectTheme('hud')">
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_hud.jpg" alt="Space HUD" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
+              </div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Space HUD</span>
+                  <span class="badge-soon">New</span>
+                </div>
+                <p class="theme-desc">Sci-fi vertical gauge instrument with segmented weekly bar.</p>
+                <div class="theme-swatch" style="background: linear-gradient(90deg, #00c864, #00b4ff);"></div>
+              </div>
+            </div>
+
+            <!-- Codex Theme 5: Block Grid -->
+            <div class="theme-card" id="theme-card-blocks" onclick="selectTheme('blocks')">
+              <div class="theme-mini-bezel">
+                <img src="/assets/theme_preview_blocks.jpg" alt="Block Grid" class="theme-mini-screen">
+                <div class="theme-mini-glare"></div>
+              </div>
+              <div class="theme-card-body">
+                <div class="theme-card-header">
+                  <span class="theme-name">Block Grid</span>
+                  <span class="badge-soon">New</span>
+                </div>
+                <p class="theme-desc">Bold tile-block segment bars: cyan 5H & green Weekly cards.</p>
+                <div class="theme-swatch" style="background: linear-gradient(90deg, #00c3ff, #00e078);"></div>
               </div>
             </div>
           </div>
@@ -1042,10 +1140,27 @@
     }
 
     const themePreviews = {
-      'default': null,
+      'default':  null,
       'cyberpunk': '/assets/theme_preview_cyberpunk.jpg',
-      'minimal': '/assets/theme_preview_minimal.jpg',
-      'terminal': '/assets/theme_preview_matrix.jpg'
+      'minimal':   '/assets/theme_preview_minimal.jpg',
+      'terminal':  '/assets/theme_preview_matrix.jpg',
+      'orbital':   '/assets/theme_preview_orbital.jpg',
+      'dome':      '/assets/theme_preview_dome.jpg',
+      'twin':      '/assets/theme_preview_twin.jpg',
+      'hud':       '/assets/theme_preview_hud.jpg',
+      'blocks':    '/assets/theme_preview_blocks.jpg'
+    };
+
+    const themeNames = {
+      'default':  'Active: Pro Ultra (Dark)',
+      'cyberpunk':'Previewing: Cyberpunk Neon',
+      'minimal':  'Previewing: Minimal Studio',
+      'terminal': 'Previewing: Matrix Terminal',
+      'orbital':  'Previewing: Orbital Rings',
+      'dome':     'Previewing: Arc Dome',
+      'twin':     'Previewing: Twin Circles',
+      'hud':      'Previewing: Space HUD',
+      'blocks':   'Previewing: Block Grid'
     };
 
     function selectTheme(themeId) {
@@ -1054,13 +1169,7 @@
       const activeCard = document.getElementById('theme-card-' + themeId);
       if (activeCard) activeCard.classList.add('active');
 
-      const labelMap = {
-        'default': 'Active: Pro Ultra (Dark)',
-        'cyberpunk': 'Previewing: Cyberpunk Neon',
-        'minimal': 'Previewing: Minimal Studio',
-        'terminal': 'Previewing: Matrix Terminal'
-      };
-      document.getElementById('current-theme-label').textContent = labelMap[themeId] || themeId;
+      document.getElementById('current-theme-label').textContent = themeNames[themeId] || themeId;
 
       const liveImg = document.getElementById('live-screen-img');
       const screenLabel = document.getElementById('current-screen-name');
