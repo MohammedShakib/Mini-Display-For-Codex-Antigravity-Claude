@@ -341,6 +341,18 @@
       border-color: rgba(168, 85, 247, 0.3);
     }
 
+    .badge-soon {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+    }
+
     .metric-item {
       margin-bottom: 0.85rem;
     }
@@ -384,6 +396,94 @@
     .progress-red {
       background: var(--red) !important;
       box-shadow: 0 0 10px var(--red-glow);
+    }
+
+    /* --- Theme Selector Cards --- */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 650px) {
+      .theme-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .theme-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1.15rem;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .theme-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .theme-card.active {
+      border-color: var(--cyan);
+      background: rgba(0, 212, 255, 0.06);
+      box-shadow: 0 0 25px var(--cyan-glow), inset 0 0 0 1px var(--cyan);
+    }
+
+    .theme-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .theme-name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+    }
+
+    .theme-card.active .theme-name {
+      color: var(--cyan);
+    }
+
+    .theme-desc {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .theme-swatch {
+      height: 6px;
+      border-radius: var(--radius-full);
+      margin-top: 0.25rem;
+    }
+
+    .swatch-default {
+      background: linear-gradient(90deg, #00d4ff, #a855f7, #ef4444);
+    }
+
+    .swatch-cyberpunk {
+      background: linear-gradient(90deg, #ff007f, #00f0ff);
+      opacity: 0.7;
+    }
+
+    .swatch-minimal {
+      background: linear-gradient(90deg, #ffffff, #64748b);
+      opacity: 0.6;
+    }
+
+    .swatch-terminal {
+      background: linear-gradient(90deg, #10b981, #059669);
+      opacity: 0.7;
     }
 
     /* --- Form Controls --- */
@@ -612,7 +712,7 @@
         </button>
       </div>
 
-      <!-- Right Column: Live Metrics & Controls -->
+      <!-- Right Column: Live Metrics, Themes & Controls -->
       <div>
         <!-- Live Metrics Cards -->
         <div class="metrics-row">
@@ -694,6 +794,63 @@
           </div>
         </div>
 
+        <!-- NEW: Clock Face & UI Theme Selection -->
+        <div class="glass-panel" style="margin-bottom: 2rem;">
+          <div class="panel-title" style="justify-content: space-between; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <span>Clock Face & UI Theme Selection</span>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--cyan); font-family: var(--font-mono);" id="current-theme-label">Active: Pro Ultra (Dark)</span>
+          </div>
+
+          <div class="theme-grid">
+            <!-- Theme 1: Default Pro Ultra -->
+            <div class="theme-card active" id="theme-card-default" onclick="selectTheme('default')">
+              <div class="theme-card-header">
+                <span class="theme-name">Pro Ultra (Dark)</span>
+                <span class="badge-active">Default · Active</span>
+              </div>
+              <p class="theme-desc">Obsidian dark glassmorphism with 0–100% meters, dynamic alert red engine, and active AI model badge.</p>
+              <div class="theme-swatch swatch-default"></div>
+            </div>
+
+            <!-- Theme 2: Cyberpunk Neon -->
+            <div class="theme-card" id="theme-card-cyberpunk" onclick="selectTheme('cyberpunk')">
+              <div class="theme-card-header">
+                <span class="theme-name">Cyberpunk Neon</span>
+                <span class="badge-soon">Coming Soon</span>
+              </div>
+              <p class="theme-desc">High-voltage neon pink & cyan accents with glowing holographic gauge indicators.</p>
+              <div class="theme-swatch swatch-cyberpunk"></div>
+            </div>
+
+            <!-- Theme 3: Minimal Studio -->
+            <div class="theme-card" id="theme-card-minimal" onclick="selectTheme('minimal')">
+              <div class="theme-card-header">
+                <span class="theme-name">Minimal Studio</span>
+                <span class="badge-soon">Coming Soon</span>
+              </div>
+              <p class="theme-desc">High-contrast monochrome Swiss typography with subtle dot matrix indicators.</p>
+              <div class="theme-swatch swatch-minimal"></div>
+            </div>
+
+            <!-- Theme 4: Retro Terminal -->
+            <div class="theme-card" id="theme-card-terminal" onclick="selectTheme('terminal')">
+              <div class="theme-card-header">
+                <span class="theme-name">Matrix Terminal</span>
+                <span class="badge-soon">Coming Soon</span>
+              </div>
+              <p class="theme-desc">Classic green-phosphor CRT monospace terminal with ASCII meter tracks.</p>
+              <div class="theme-swatch swatch-terminal"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Controls Panel -->
         <div class="glass-panel">
           <div class="panel-title">
@@ -769,6 +926,8 @@
   </div>
 
   <script>
+    let currentSelectedTheme = 'default';
+
     function updateIntervalDisplay(val) {
       document.getElementById('val-rotation-interval').textContent = val + 's';
     }
@@ -781,7 +940,35 @@
       const toast = document.getElementById('toast');
       document.getElementById('toast-message').textContent = msg;
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
+      setTimeout(() => toast.classList.remove('show'), 3200);
+    }
+
+    function selectTheme(themeId) {
+      currentSelectedTheme = themeId;
+      document.querySelectorAll('.theme-card').forEach(card => card.classList.remove('active'));
+      const activeCard = document.getElementById('theme-card-' + themeId);
+      if (activeCard) activeCard.classList.add('active');
+
+      const labelMap = {
+        'default': 'Active: Pro Ultra (Dark)',
+        'cyberpunk': 'Selected: Cyberpunk Neon (Coming Soon)',
+        'minimal': 'Selected: Minimal Studio (Coming Soon)',
+        'terminal': 'Selected: Matrix Terminal (Coming Soon)'
+      };
+      document.getElementById('current-theme-label').textContent = labelMap[themeId] || themeId;
+
+      if (themeId === 'default') {
+        showToast('Default Pro Ultra theme is active on device!');
+      } else {
+        showToast(`Theme selected: ${themeId.toUpperCase()} (Coming in next UI update)`);
+      }
+
+      // Automatically sync theme selection to config
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected_theme: themeId })
+      });
     }
 
     async function fetchStatus() {
@@ -897,6 +1084,9 @@
           updateAlertDisplay(config.alert_threshold);
         }
         if (config.show_splash !== undefined) document.getElementById('check-splash').checked = config.show_splash;
+        if (config.selected_theme) {
+          selectTheme(config.selected_theme);
+        }
       } catch (err) {
         console.error('Config load error:', err);
       }
@@ -908,7 +1098,8 @@
         rotation_interval: parseInt(document.getElementById('slider-interval').value, 10),
         ag_model_mode: document.getElementById('select-model-mode').value,
         alert_threshold: parseInt(document.getElementById('slider-alert').value, 10),
-        show_splash: document.getElementById('check-splash').checked
+        show_splash: document.getElementById('check-splash').checked,
+        selected_theme: currentSelectedTheme
       };
 
       try {

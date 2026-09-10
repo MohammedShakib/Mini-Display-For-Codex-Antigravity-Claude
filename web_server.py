@@ -20,6 +20,7 @@ def read_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
+        "selected_theme": "default",
     }
     if CONFIG_PATH.exists():
         try:
@@ -98,6 +99,8 @@ def config_endpoint():
             updated["alert_threshold"] = max(10, min(100, int(payload["alert_threshold"])))
         if "show_splash" in payload:
             updated["show_splash"] = bool(payload["show_splash"])
+        if "selected_theme" in payload:
+            updated["selected_theme"] = str(payload["selected_theme"]).strip()
 
         saved = write_config(updated)
         return jsonify({"status": "ok", "config": saved})
