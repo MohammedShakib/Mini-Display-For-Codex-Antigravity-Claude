@@ -8,6 +8,7 @@ Seamlessly tracks and displays token limits and consumption for **OpenAI Codex**
 
 ## ✨ Features
 
+- 🌐 **Local Web Control Dashboard**: Modern glassmorphism dark-mode web control center (`http://localhost:5050`) featuring real-time clock screen streaming, live quota telemetry, interactive sliders, and instant hot-reload.
 - 🔄 **30s Smooth Rotation**: Rotates between Codex usage and Antigravity active model usage every 30 seconds.
 - ⚡ **0.5s Logo Splash Transition**: Displays a minimal, clean brand logo for exactly 0.5s before smoothly transitioning to the dashboard screen.
 - 🤖 **Real-Time Active Model Detection**: Dynamically inspects Antigravity IDE session logs in real time. When you switch between **Claude Sonnet** and **Gemini**, the clock automatically detects and switches to that model's dedicated quota screen!
@@ -18,8 +19,12 @@ Seamlessly tracks and displays token limits and consumption for **OpenAI Codex**
 
 ---
 
-## 📸 Screenshots & Previews
+## 📸 Web Dashboard & Clock Previews
 
+### Local Web Control Dashboard (`http://localhost:5050`)
+![Smart Clock Web Dashboard](assets/web_dashboard_preview.png)
+
+### Physical Clock Displays
 | Codex Dashboard (Normal) | Antigravity Claude Sonnet | 80%+ Critical Red Alert |
 | :---: | :---: | :---: |
 | <img src="assets/preview_codex_240.jpg" width="240"/> | <img src="assets/preview_antigravity_claude_240.jpg" width="240"/> | <img src="assets/codex_usage_red_preview.jpg" width="240"/> |

@@ -24,6 +24,38 @@ CODEX_STALE_LIMIT_MINUTES = 30
 PERCENT_RE = re.compile(r"^(\d+(?:\.\d+)?)%$")
 ANTIGRAVITY_CSRF_RE = re.compile(r"--csrf_token\s+(\S+)")
 ANTIGRAVITY_QUOTA_METHOD = "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary"
+CONFIG_PATH = Path(__file__).with_name("config.json")
+STATE_PATH = Path(__file__).with_name("runtime_state.json")
+LIVE_PREVIEW_PATH = Path(__file__).parent / "assets" / "live_screen.jpg"
+
+
+def load_config():
+    defaults = {
+        "clock_ip": DEFAULT_CLOCK_IP,
+        "rotation_interval": 30,
+        "ag_model_mode": "auto",
+        "alert_threshold": 80,
+        "show_splash": True,
+    }
+    if CONFIG_PATH.exists():
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                defaults.update(data)
+        except Exception:
+            pass
+    return defaults
+
+
+def save_runtime_state(state):
+    try:
+        tmp = STATE_PATH.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+        tmp.replace(STATE_PATH)
+    except Exception:
+        pass
+
 
 
 def iter_recent_session_files(limit=40):
@@ -522,7 +554,7 @@ def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), la
     draw_progress_bar(draw, 16, y + 26, 208, 12, percent, accent_color, track_color)
 
 
-def render_codex_screen(data, freshness_state, last_success_ts, output_path):
+def render_codex_screen(data, freshness_state, last_success_ts, output_path, alert_threshold=80.0):
     is_offline = freshness_state == "offline"
     is_stale = freshness_state == "stale"
     
@@ -530,7 +562,7 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path):
     used_p = clamp_percent(data.get("primary_percent", 0))
     used_w = clamp_percent(data.get("weekly_percent", 0))
     
-    is_warning = (used_p is not None and used_p >= 80.0) or (used_w is not None and used_w >= 80.0)
+    is_warning = (used_p is not None and used_p >= alert_threshold) or (used_w is not None and used_w >= alert_threshold)
     
     bg_color = (22, 7, 10, 255) if is_warning else (10, 12, 18, 255)
     border_color = (140, 35, 45) if is_warning else (30, 40, 60)
@@ -566,7 +598,7 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path):
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
-def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekly_rem, freshness_state, last_success_ts, output_path):
+def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekly_rem, freshness_state, last_success_ts, output_path, alert_threshold=80.0):
     is_offline = freshness_state == "offline"
     is_stale = freshness_state == "stale"
     
@@ -575,7 +607,7 @@ def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekl
     five_used = clamp_percent(100.0 - five_hour_rem) if five_hour_rem is not None else None
     w_used = clamp_percent(100.0 - weekly_rem) if weekly_rem is not None else None
     
-    is_warning = (five_used is not None and five_used >= 80.0) or (w_used is not None and w_used >= 80.0)
+    is_warning = (five_used is not None and five_used >= alert_threshold) or (w_used is not None and w_used >= alert_threshold)
     
     bg_color = (22, 7, 10, 255) if is_warning else (10, 12, 18, 255)
     border_color = (140, 35, 45) if is_warning else (30, 40, 60)
@@ -706,24 +738,24 @@ def trigger_clock_refresh(clock_ip):
         pass
 
 
-def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_splash=True):
+def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_splash=True, alert_threshold=80.0):
     summary = ""
     dash_temp_path = output_path.with_name("temp_" + output_path.name)
     
     # 1. Pre-render the main dashboard image FIRST so there is zero render delay after splash
     if screen_name == "codex":
-        render_codex_screen(data_state["codex"]["data"], data_state["codex"]["state"], data_state["codex"]["time"], dash_temp_path)
+        render_codex_screen(data_state["codex"]["data"], data_state["codex"]["state"], data_state["codex"]["time"], dash_temp_path, alert_threshold)
         summary = "codex"
     elif screen_name == "codex_offline":
         render_offline_screen(LOGO_NAME, "Codex", data_state["codex"]["time"], dash_temp_path)
         summary = "codex offline"
     elif screen_name == "ag_gemini":
         data = data_state["ag"]["data"]["groups"]["gemini"]
-        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path)
+        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
         summary = "ag_gemini"
     elif screen_name == "ag_claude":
         data = data_state["ag"]["data"]["groups"]["claude_gpt"]
-        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path)
+        render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
         summary = "ag_claude"
     elif screen_name == "ag_offline":
         render_offline_screen(ANTIGRAVITY_LOGO_NAME, "Anti Gravity", data_state["ag"]["time"], dash_temp_path)
@@ -742,11 +774,21 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
         if splash_shown:
             upload_file(clock_ip, output_path)
             trigger_clock_refresh(clock_ip)
+            try:
+                import shutil
+                shutil.copy2(str(output_path), str(LIVE_PREVIEW_PATH))
+            except Exception:
+                pass
             time.sleep(0.5)
 
     # 3. Upload the pre-rendered main dashboard image immediately
     status, _ = upload_file(clock_ip, dash_temp_path, filename=OUTPUT_NAME)
     trigger_clock_refresh(clock_ip)
+    try:
+        import shutil
+        shutil.copy2(str(dash_temp_path), str(LIVE_PREVIEW_PATH))
+    except Exception:
+        pass
     if configure:
         configure_clock(clock_ip)
     print(f"uploaded {output_path.name} to {clock_ip} | {summary} status={status}")
@@ -865,6 +907,14 @@ def main():
     is_first_run = True
 
     while True:
+        # Load runtime configuration (hot-reloaded from config.json)
+        config = load_config()
+        active_clock_ip = config.get("clock_ip", args.clock_ip)
+        ag_model_mode = config.get("ag_model_mode", args.ag_model)
+        show_splash = config.get("show_splash", not args.no_splash)
+        alert_threshold = float(config.get("alert_threshold", 80))
+        loop_interval = max(5, int(config.get("rotation_interval", args.loop)))
+
         try:
             codex_data = find_latest_limits()
             if codex_data:
@@ -895,11 +945,11 @@ def main():
         if ag_state == "offline" or not last_ag_data:
             active_pages.append("ag_offline")
         else:
-            if args.ag_model == "gemini":
+            if ag_model_mode == "gemini":
                 active_pages.append("ag_gemini")
-            elif args.ag_model == "claude":
+            elif ag_model_mode == "claude":
                 active_pages.append("ag_claude")
-            elif args.ag_model == "both":
+            elif ag_model_mode == "both":
                 active_pages.append("ag_gemini")
                 active_pages.append("ag_claude")
             else:  # auto
@@ -918,18 +968,64 @@ def main():
             "codex": {"data": last_codex_data, "time": last_codex_time, "state": codex_state},
             "ag": {"data": last_ag_data, "time": last_ag_time, "state": ag_state}
         }
+
+        # Save runtime state for the local web dashboard
+        ag_gem = (last_ag_data or {}).get("groups", {}).get("gemini", {})
+        ag_claude = (last_ag_data or {}).get("groups", {}).get("claude_gpt", {})
+        save_runtime_state({
+            "timestamp": time.time(),
+            "active_page": current_page,
+            "active_ag_model": active_ag_model,
+            "clock_ip": active_clock_ip,
+            "codex": {
+                "state": codex_state,
+                "primary_percent": last_codex_data.get("primary_percent") if last_codex_data else None,
+                "weekly_percent": last_codex_data.get("weekly_percent") if last_codex_data else None,
+                "primary_reset": last_codex_data.get("primary_reset") if last_codex_data else None,
+                "last_time": last_codex_time,
+            },
+            "ag": {
+                "state": ag_state,
+                "last_time": last_ag_time,
+                "gemini": {
+                    "five_hour_remaining": ag_gem.get("five_hour_remaining"),
+                    "weekly_remaining": ag_gem.get("weekly_remaining"),
+                },
+                "claude_gpt": {
+                    "five_hour_remaining": ag_claude.get("five_hour_remaining"),
+                    "weekly_remaining": ag_claude.get("weekly_remaining"),
+                },
+            },
+            "config": config,
+        })
         
         try:
             should_configure = not args.no_configure and is_first_run
-            run_screen(args.clock_ip, output_path, should_configure, current_page, data_state, show_splash=not args.no_splash)
+            run_screen(active_clock_ip, output_path, should_configure, current_page, data_state, show_splash=show_splash, alert_threshold=alert_threshold)
             is_first_run = False
         except Exception as exc:
             print(f"error: {exc}")
             
         if args.loop <= 0:
             break
-        sleep_interval = max(1.0, args.loop - 0.8) if not args.no_splash else args.loop
-        time.sleep(sleep_interval)
+            
+        # Sleep in 1-second ticks so changes in config.json or refresh triggers apply promptly
+        sleep_interval = max(1.0, loop_interval - 0.8) if show_splash else loop_interval
+        start_sleep = time.time()
+        while time.time() - start_sleep < sleep_interval:
+            time.sleep(0.5)
+            # Check if a refresh was requested via config
+            new_conf = load_config()
+            if new_conf.get("force_refresh"):
+                # Clear flag and break out to refresh immediately
+                new_conf.pop("force_refresh", None)
+                try:
+                    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                        json.dump(new_conf, f, indent=2)
+                except Exception:
+                    pass
+                break
+
 
 
 if __name__ == "__main__":

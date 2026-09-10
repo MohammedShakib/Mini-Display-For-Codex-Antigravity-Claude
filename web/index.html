@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Clock Pro Ultra — Control Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #080b11;
+      --bg-surface: rgba(16, 22, 34, 0.75);
+      --bg-surface-elevated: rgba(22, 30, 48, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(0, 212, 255, 0.35);
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --cyan: #00d4ff;
+      --cyan-glow: rgba(0, 212, 255, 0.3);
+      --purple: #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.3);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.3);
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --red-glow: rgba(239, 68, 68, 0.4);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
+      --shadow-glass: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0, 212, 255, 0.12), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 85% 80%, rgba(168, 85, 247, 0.08), transparent 60%),
+        radial-gradient(ellipse 50% 50% at 15% 50%, rgba(16, 185, 129, 0.05), transparent 50%);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* --- Header --- */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px var(--cyan-glow);
+    }
+
+    .brand-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #fff;
+    }
+
+    .brand-text h1 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      font-family: var(--font-mono);
+    }
+
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald-glow);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* --- Dashboard Grid --- */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .grid-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* --- Glass Panel --- */
+    .glass-panel {
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-glass);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .glass-panel:hover {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    /* --- Live Clock Mockup Card --- */
+    .mockup-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .device-bezel {
+      position: relative;
+      width: 276px;
+      height: 276px;
+      border-radius: 40px;
+      background: linear-gradient(145deg, #1e2536, #0e131e);
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      padding: 18px;
+      box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.8),
+        0 0 35px rgba(0, 212, 255, 0.15),
+        inset 0 2px 4px rgba(255, 255, 255, 0.2);
+    }
+
+    .device-screen {
+      width: 240px;
+      height: 240px;
+      border-radius: 24px;
+      overflow: hidden;
+      background: #0a0c12;
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.9);
+      position: relative;
+    }
+
+    .device-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: opacity 0.3s ease;
+    }
+
+    .screen-overlay-glare {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50%;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05), transparent);
+      pointer-events: none;
+    }
+
+    .mockup-info {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .mockup-info span {
+      color: var(--cyan);
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    /* --- Action Button --- */
+    .btn-sync {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(168, 85, 247, 0.2));
+      border: 1px solid var(--border-accent);
+      color: var(--text-primary);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-sync:hover {
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.35), rgba(168, 85, 247, 0.35));
+      border-color: var(--cyan);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-sync:active {
+      transform: translateY(0);
+    }
+
+    /* --- Metrics Cards --- */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      .metrics-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .metric-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card.codex-card {
+      border-left: 4px solid var(--cyan);
+    }
+
+    .metric-card.ag-card {
+      border-left: 4px solid var(--purple);
+    }
+
+    .metric-card.warning-alert {
+      border-left-color: var(--red) !important;
+      background: rgba(30, 10, 14, 0.7);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .badge-active {
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-full);
+      background: rgba(0, 212, 255, 0.15);
+      color: var(--cyan);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-purple {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--purple);
+      border-color: rgba(168, 85, 247, 0.3);
+    }
+
+    .metric-item {
+      margin-bottom: 0.85rem;
+    }
+
+    .metric-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .metric-item-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.35rem;
+    }
+
+    .metric-val {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .progress-bar-wrap {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--cyan);
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .progress-purple {
+      background: var(--purple);
+    }
+
+    .progress-red {
+      background: var(--red) !important;
+      box-shadow: 0 0 10px var(--red-glow);
+    }
+
+    /* --- Form Controls --- */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 700px) {
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .form-val-display {
+      font-family: var(--font-mono);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    .form-select, .form-input {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-select:focus, .form-input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    .range-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+      margin: 0.75rem 0;
+    }
+
+    .range-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--cyan);
+      cursor: pointer;
+      box-shadow: 0 0 12px var(--cyan);
+      transition: transform 0.1s;
+    }
+
+    .range-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Toggle Switch */
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    /* --- Save Button --- */
+    .btn-save {
+      margin-top: 1.5rem;
+      width: 100%;
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      border: none;
+      color: #fff;
+      padding: 0.85rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-save:hover {
+      box-shadow: 0 0 25px rgba(0, 180, 216, 0.4);
+      transform: translateY(-1px);
+    }
+
+    /* --- Toast Notification --- */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--emerald);
+      color: var(--text-primary);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 15px var(--emerald-glow);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Smart Clock Pro Ultra</h1>
+          <p>Local AI Quota & Display Control Center</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-pulse" id="connection-dot"></div>
+        <span id="connection-status">Online · 192.168.0.58</span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid-layout">
+      <!-- Left Column: Clock Device Mockup -->
+      <div class="glass-panel mockup-container">
+        <div class="panel-title">
+          <span>Live Device Display</span>
+        </div>
+
+        <div class="device-bezel">
+          <div class="device-screen">
+            <img id="live-screen-img" src="/api/preview" alt="Smart Clock Screen">
+            <div class="screen-overlay-glare"></div>
+          </div>
+        </div>
+
+        <div class="mockup-info">
+          Currently displaying: <span id="current-screen-name">--</span>
+          <br>Last updated: <span id="last-update-time">now</span>
+        </div>
+
+        <button class="btn-sync" id="btn-force-refresh" onclick="triggerRefresh()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          Trigger Instant Sync
+        </button>
+      </div>
+
+      <!-- Right Column: Live Metrics & Controls -->
+      <div>
+        <!-- Live Metrics Cards -->
+        <div class="metrics-row">
+          <!-- Codex Quota Card -->
+          <div class="metric-card codex-card" id="codex-metric-card">
+            <div class="card-header">
+              <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                  <polyline points="2 17 12 22 22 17"></polyline>
+                  <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+                Codex Quota
+              </div>
+              <span class="badge-active" id="codex-status-badge">ONLINE</span>
+            </div>
+
+            <div class="metric-item">
+              <div class="metric-item-top">
+                <span>5-Hour Limit Usage</span>
+                <span class="metric-val" id="codex-5h-val">--%</span>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="codex-5h-bar" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <div class="metric-item-top">
+                <span>Weekly Limit Usage</span>
+                <span class="metric-val" id="codex-weekly-val">--%</span>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="codex-weekly-bar" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem;" id="codex-reset-info">
+              Reset: --
+            </div>
+          </div>
+
+          <!-- Antigravity Quota Card -->
+          <div class="metric-card ag-card" id="ag-metric-card">
+            <div class="card-header">
+              <div class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                </svg>
+                Antigravity IDE
+              </div>
+              <span class="badge-active badge-purple" id="ag-model-badge">GEMINI</span>
+            </div>
+
+            <div class="metric-item">
+              <div class="metric-item-top">
+                <span>5-Hour Limit Usage</span>
+                <span class="metric-val" id="ag-5h-val">--%</span>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill progress-purple" id="ag-5h-bar" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div class="metric-item">
+              <div class="metric-item-top">
+                <span>Weekly Limit Usage</span>
+                <span class="metric-val" id="ag-weekly-val">--%</span>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill progress-purple" id="ag-weekly-bar" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem;" id="ag-active-desc">
+              Active Model: Detecting...
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="glass-panel">
+          <div class="panel-title">
+            <span>Display & Behavior Settings</span>
+          </div>
+
+          <div class="controls-grid">
+            <!-- Model Mode Selector -->
+            <div class="form-group">
+              <label class="form-label" for="select-model-mode">
+                <span>Antigravity Model Display</span>
+              </label>
+              <select id="select-model-mode" class="form-select">
+                <option value="auto">Auto-Detect (Active IDE Model)</option>
+                <option value="gemini">Force Gemini Screen</option>
+                <option value="claude">Force Claude Sonnet Screen</option>
+                <option value="both">Rotate Both (Gemini & Claude)</option>
+              </select>
+            </div>
+
+            <!-- Rotation Interval Slider -->
+            <div class="form-group">
+              <label class="form-label">
+                <span>Screen Rotation Interval</span>
+                <span class="form-val-display" id="val-rotation-interval">30s</span>
+              </label>
+              <input type="range" class="range-slider" id="slider-interval" min="10" max="120" step="5" value="30" oninput="updateIntervalDisplay(this.value)">
+            </div>
+
+            <!-- Alert Threshold Slider -->
+            <div class="form-group">
+              <label class="form-label">
+                <span>Critical Red Alert Threshold</span>
+                <span class="form-val-display" id="val-alert-threshold">80%</span>
+              </label>
+              <input type="range" class="range-slider" id="slider-alert" min="50" max="95" step="5" value="80" oninput="updateAlertDisplay(this.value)">
+            </div>
+
+            <!-- Clock IP Address -->
+            <div class="form-group">
+              <label class="form-label" for="input-clock-ip">
+                <span>Smart Clock IP</span>
+              </label>
+              <input type="text" id="input-clock-ip" class="form-input" placeholder="192.168.0.58">
+            </div>
+          </div>
+
+          <!-- Splash Transition Toggle -->
+          <div class="toggle-row" style="margin-top: 1.25rem; border-top: 1px solid var(--border-subtle); padding-top: 1rem;">
+            <div>
+              <div style="font-weight: 500; font-size: 0.95rem;">0.5s Logo Splash Transition</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Displays clean brand logo when rotating screens</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="check-splash" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Save Button -->
+          <button class="btn-save" onclick="saveSettings()">Save & Apply Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div class="toast" id="toast">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2">
+      <path d="M20 6L9 17l-5-5"/>
+    </svg>
+    <span id="toast-message">Settings applied successfully!</span>
+  </div>
+
+  <script>
+    function updateIntervalDisplay(val) {
+      document.getElementById('val-rotation-interval').textContent = val + 's';
+    }
+
+    function updateAlertDisplay(val) {
+      document.getElementById('val-alert-threshold').textContent = val + '%';
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-message').textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Live Screen Image
+        const img = document.getElementById('live-screen-img');
+        img.src = '/api/preview?t=' + Date.now();
+        
+        // Current Page Name
+        const pageName = data.active_page || 'Syncing';
+        document.getElementById('current-screen-name').textContent = pageName.toUpperCase();
+        document.getElementById('last-update-time').textContent = new Date().toLocaleTimeString();
+
+        // Connection
+        const ip = (data.config && data.config.clock_ip) || '192.168.0.58';
+        document.getElementById('connection-status').textContent = 'Online · ' + ip;
+
+        // Codex Data
+        if (data.codex) {
+          const p5 = data.codex.primary_percent || 0;
+          const pw = data.codex.weekly_percent || 0;
+          document.getElementById('codex-5h-val').textContent = p5.toFixed(0) + '%';
+          document.getElementById('codex-weekly-val').textContent = pw.toFixed(0) + '%';
+          
+          const bar5 = document.getElementById('codex-5h-bar');
+          const barW = document.getElementById('codex-weekly-bar');
+          bar5.style.width = Math.min(100, p5) + '%';
+          barW.style.width = Math.min(100, pw) + '%';
+          
+          const alertThresh = (data.config && data.config.alert_threshold) || 80;
+          if (p5 >= alertThresh || pw >= alertThresh) {
+            bar5.classList.add('progress-red');
+            barW.classList.add('progress-red');
+            document.getElementById('codex-metric-card').classList.add('warning-alert');
+          } else {
+            bar5.classList.remove('progress-red');
+            barW.classList.remove('progress-red');
+            document.getElementById('codex-metric-card').classList.remove('warning-alert');
+          }
+
+          if (data.codex.primary_reset) {
+            const date = new Date(data.codex.primary_reset * 1000);
+            document.getElementById('codex-reset-info').textContent = 'Reset: ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        }
+
+        // Antigravity Data
+        if (data.ag) {
+          const activeModel = data.active_ag_model || 'gemini';
+          const modelBadge = document.getElementById('ag-model-badge');
+          
+          let groupData = null;
+          if (activeModel === 'claude_gpt' && data.ag.claude_gpt) {
+            groupData = data.ag.claude_gpt;
+            modelBadge.textContent = 'CLAUDE SONNET';
+            modelBadge.className = 'badge-active badge-purple';
+            document.getElementById('ag-active-desc').textContent = 'Active Model: Claude Sonnet (Auto-Detected)';
+          } else {
+            groupData = data.ag.gemini || {};
+            modelBadge.textContent = 'GEMINI';
+            modelBadge.className = 'badge-active';
+            document.getElementById('ag-active-desc').textContent = 'Active Model: Gemini 3.8 Flash (Auto-Detected)';
+          }
+
+          const rem5 = groupData.five_hour_remaining;
+          const remW = groupData.weekly_remaining;
+          const used5 = rem5 !== null && rem5 !== undefined ? Math.max(0, 100 - rem5) : 0;
+          const usedW = remW !== null && remW !== undefined ? Math.max(0, 100 - remW) : 0;
+
+          document.getElementById('ag-5h-val').textContent = used5.toFixed(0) + '%';
+          document.getElementById('ag-weekly-val').textContent = usedW.toFixed(0) + '%';
+
+          const agBar5 = document.getElementById('ag-5h-bar');
+          const agBarW = document.getElementById('ag-weekly-bar');
+          agBar5.style.width = Math.min(100, used5) + '%';
+          agBarW.style.width = Math.min(100, usedW) + '%';
+
+          const alertThresh = (data.config && data.config.alert_threshold) || 80;
+          if (used5 >= alertThresh || usedW >= alertThresh) {
+            agBar5.classList.add('progress-red');
+            agBarW.classList.add('progress-red');
+            document.getElementById('ag-metric-card').classList.add('warning-alert');
+          } else {
+            agBar5.classList.remove('progress-red');
+            agBarW.classList.remove('progress-red');
+            document.getElementById('ag-metric-card').classList.remove('warning-alert');
+          }
+        }
+
+      } catch (err) {
+        console.error('Fetch error:', err);
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        if (!res.ok) return;
+        const config = await res.json();
+        
+        if (config.clock_ip) document.getElementById('input-clock-ip').value = config.clock_ip;
+        if (config.rotation_interval) {
+          document.getElementById('slider-interval').value = config.rotation_interval;
+          updateIntervalDisplay(config.rotation_interval);
+        }
+        if (config.ag_model_mode) document.getElementById('select-model-mode').value = config.ag_model_mode;
+        if (config.alert_threshold) {
+          document.getElementById('slider-alert').value = config.alert_threshold;
+          updateAlertDisplay(config.alert_threshold);
+        }
+        if (config.show_splash !== undefined) document.getElementById('check-splash').checked = config.show_splash;
+      } catch (err) {
+        console.error('Config load error:', err);
+      }
+    }
+
+    async function saveSettings() {
+      const payload = {
+        clock_ip: document.getElementById('input-clock-ip').value.trim(),
+        rotation_interval: parseInt(document.getElementById('slider-interval').value, 10),
+        ag_model_mode: document.getElementById('select-model-mode').value,
+        alert_threshold: parseInt(document.getElementById('slider-alert').value, 10),
+        show_splash: document.getElementById('check-splash').checked
+      };
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast('Settings saved & applied to clock!');
+          fetchStatus();
+        }
+      } catch (err) {
+        showToast('Error saving settings');
+      }
+    }
+
+    async function triggerRefresh() {
+      const btn = document.getElementById('btn-force-refresh');
+      btn.style.opacity = '0.5';
+      try {
+        await fetch('/api/refresh', { method: 'POST' });
+        showToast('Instant sync triggered! Clock is updating...');
+        setTimeout(() => {
+          fetchStatus();
+          btn.style.opacity = '1';
+        }, 1500);
+      } catch (err) {
+        btn.style.opacity = '1';
+      }
+    }
+
+    // Initial load & poll every 3s
+    loadConfig();
+    fetchStatus();
+    setInterval(fetchStatus, 3000);
+  </script>
+</body>
+</html>
