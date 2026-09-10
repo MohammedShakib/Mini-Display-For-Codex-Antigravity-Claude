@@ -44,7 +44,7 @@ def index():
     index_file = BASE_DIR / "web" / "index.html"
     if index_file.exists():
         return send_file(str(index_file))
-    return "<h1>Smart Clock Dashboard UI is loading...</h1>"
+    return "<h1>SyncAI Control Dashboard is loading...</h1>"
 
 
 @app.route("/assets/<path:filename>")
@@ -114,7 +114,7 @@ def refresh():
 
 
 def run_server(host="0.0.0.0", port=5050):
-    print(f"Starting Smart Clock Web Dashboard on http://localhost:{port}")
+    print(f"Starting SyncAI Control Dashboard on http://localhost:{port}")
     app.run(host=host, port=port, debug=False, threaded=True)
 
 

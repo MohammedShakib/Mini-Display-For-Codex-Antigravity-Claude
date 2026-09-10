@@ -1,8 +1,8 @@
-# Mini Display For Codex & Antigravity (Claude / Gemini)
+# SyncAI — Smart Desk Display for Codex & Antigravity IDE
 
-A real-time AI quota usage dashboard and automated monitor for the **Smart Weather Clock Pro Ultra** (240x240 LCD display).
+A real-time AI quota usage dashboard, telemetry monitor, and smart screen controller for the 240x240 LCD display.
 
-Seamlessly tracks and displays token limits and consumption for **OpenAI Codex** and **Google Antigravity IDE** (with automatic active model detection for **Claude** and **Gemini**).
+Seamlessly tracks, visualizes, and rotates token limits and consumption for **OpenAI Codex** and **Google Antigravity IDE** (with automatic active model detection for **Claude** and **Gemini**).
 
 ---
 
@@ -22,7 +22,7 @@ Seamlessly tracks and displays token limits and consumption for **OpenAI Codex**
 ## 📸 Web Dashboard & Clock Previews
 
 ### Local Web Control Dashboard (`http://localhost:5050`)
-![Smart Clock Web Dashboard](assets/web_dashboard_preview.png)
+![SyncAI Web Dashboard](assets/web_dashboard_preview.png)
 
 ### Physical Clock Displays
 | Codex Dashboard (Normal) | Antigravity Claude Sonnet | 80%+ Critical Red Alert |
@@ -38,7 +38,7 @@ Seamlessly tracks and displays token limits and consumption for **OpenAI Codex**
 ## 📁 Repository Structure
 
 ```
-Mini-Display-For-Codex-Antigravity-Claude/
+SyncAI/
 ├── assets/                          # Brand logos and high-resolution screen previews
 │   ├── codex_logo.png
 │   ├── antigravity_logo.png
