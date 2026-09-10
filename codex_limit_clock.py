@@ -22,6 +22,7 @@ LOGO_NAME = "codex_logo.png"
 ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
+ANTIGRAVITY_OFFLINE_SECONDS = 10
 
 PERCENT_RE = re.compile(r"^(\d+(?:\.\d+)?)%$")
 ANTIGRAVITY_CSRF_RE = re.compile(r"--csrf_token\s+(\S+)")
@@ -60,6 +61,16 @@ def save_runtime_state(state):
         pass
 
 
+def load_runtime_state():
+    if not STATE_PATH.exists():
+        return {}
+    try:
+        with open(STATE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 
 def iter_recent_session_files(limit=40):
     root = Path.home() / ".codex" / "sessions"
@@ -76,6 +87,30 @@ def tail_lines(path, max_bytes=12 * 1024 * 1024):
             f.readline()
         data = f.read()
     return data.decode("utf-8", errors="ignore").splitlines()
+
+
+def reset_time_has_passed(reset_ts):
+    if not reset_ts:
+        return False
+    try:
+        return int(reset_ts) <= int(time.time())
+    except Exception:
+        return False
+
+
+def apply_codex_reset_correction(data):
+    if reset_time_has_passed(data.get("primary_reset")):
+        data["primary_percent"] = 0.0
+        data["primary_reset_elapsed"] = True
+    else:
+        data["primary_reset_elapsed"] = False
+
+    if reset_time_has_passed(data.get("weekly_reset")):
+        data["weekly_percent"] = 0.0
+        data["weekly_reset_elapsed"] = True
+    else:
+        data["weekly_reset_elapsed"] = False
+    return data
 
 
 def find_latest_limits():
@@ -109,7 +144,7 @@ def find_latest_limits():
             break
     if not best:
         raise RuntimeError("No Codex token_count event found in ~/.codex/sessions")
-    return best
+    return apply_codex_reset_correction(best)
 
 
 def powershell_json(script, timeout=10):
@@ -590,7 +625,9 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
     
     reset_ts = data.get("primary_reset")
     reset_str = None
-    if reset_ts:
+    if data.get("primary_reset_elapsed"):
+        reset_str = "Reset done"
+    elif reset_ts:
         try:
             if isinstance(reset_ts, (int, float)) or (isinstance(reset_ts, str) and reset_ts.isdigit()):
                 reset_str = f"Reset {datetime.fromtimestamp(int(reset_ts)).strftime('%I:%M %p').lstrip('0')}"
@@ -658,7 +695,46 @@ def render_splash_screen(logo_name, output_path=None):
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
+def render_logo_only_screen(logo_name, output_path, max_size=166):
+    img = Image.new("RGBA", (240, 240), (2, 6, 16, 255))
+    logo = load_logo(Path(__file__).with_name(logo_name), max_size)
+    if logo is not None:
+        x = (240 - logo.width) // 2
+        y = (240 - logo.height) // 2
+        img.alpha_composite(logo, (x, y))
+    else:
+        d = ImageDraw.Draw(img)
+        text = "ANTI GRAVITY"
+        fnt = font(20, True)
+        box = d.textbbox((0, 0), text, font=fnt)
+        d.text(((240 - (box[2] - box[0])) // 2, 106), text, fill=(242, 247, 255), font=fnt)
+    img.convert("RGB").save(output_path, "JPEG", quality=92)
+
+
+def render_antigravity_offline_screen(logo_name, last_seen_ts, output_path):
+    img = Image.new("RGBA", (240, 240), (10, 12, 18, 255))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=(70, 82, 110), width=1)
+
+    logo = load_logo(Path(__file__).with_name(logo_name), 58)
+    if logo is not None:
+        x = (240 - logo.width) // 2
+        img.alpha_composite(logo, (x, 46))
+
+    title = "Open Antigravity IDE"
+    title_font = font(14, True)
+
+    title_box = d.textbbox((0, 0), title, font=title_font)
+    d.text(((240 - (title_box[2] - title_box[0])) // 2, 143), title, fill=(242, 247, 255), font=title_font)
+
+    img.convert("RGB").save(output_path, "JPEG", quality=92)
+
+
 def render_offline_screen(logo_name, provider_name, last_seen_ts, output_path):
+    if "Anti" in provider_name:
+        render_antigravity_offline_screen(logo_name, last_seen_ts, output_path)
+        return
+
     img = Image.new("RGBA", (240, 240), (10, 12, 18, 255))
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=(30, 40, 60), width=1)
@@ -756,7 +832,9 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             used_w = codex_data.get("weekly_percent")
             reset_ts = codex_data.get("primary_reset")
             reset_str = "Reset --"
-            if reset_ts:
+            if codex_data.get("primary_reset_elapsed"):
+                reset_str = "Reset done"
+            elif reset_ts:
                 try:
                     reset_str = f"Reset {datetime.fromtimestamp(int(reset_ts)).strftime('%I:%M %p').lstrip('0')}"
                 except Exception:
@@ -831,19 +909,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             )
             summary = f"ag_claude [{theme_id}]"
         elif screen_name == "ag_offline":
-            render_custom_theme(
-                theme_id=theme_id,
-                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
-                model_label="ANTI GRAVITY",
-                used_p=None,
-                used_w=None,
-                is_offline=True,
-                is_stale=False,
-                last_success_ts=data_state["ag"]["time"],
-                output_path=dash_temp_path,
-                alert_threshold=alert_threshold,
-                reset_str="Offline"
-            )
+            render_antigravity_offline_screen(ANTIGRAVITY_LOGO_NAME, data_state["ag"]["time"], dash_temp_path)
             summary = f"ag offline [{theme_id}]"
     else:
         if screen_name == "codex":
@@ -999,13 +1065,14 @@ def main():
     args = parser.parse_args()
 
     output_path = Path(args.output).resolve()
+    previous_state = load_runtime_state()
     
     last_codex_data = None
     last_codex_time = 0
     last_ag_data = None
     previous_ag_data = None
     active_ag_model = "gemini"
-    last_ag_time = 0
+    last_ag_time = float((previous_state.get("ag") or {}).get("last_time") or 0)
     page_index = 0
     is_first_run = True
 
@@ -1026,18 +1093,21 @@ def main():
         except Exception:
             pass
 
+        ag_current_ok = False
         try:
             ag_data = find_antigravity_limits()
             if ag_data:
+                ag_current_ok = True
                 active_ag_model = determine_active_ag_model(ag_data, previous_ag_data, active_ag_model)
                 previous_ag_data = ag_data
                 last_ag_data = ag_data
                 last_ag_time = time.time()
         except Exception:
+            last_ag_data = None
             pass
             
         codex_state = get_freshness_state(last_codex_time, CODEX_STALE_LIMIT_MINUTES)
-        ag_state = get_freshness_state(last_ag_time, ANTIGRAVITY_STALE_LIMIT_MINUTES)
+        ag_state = get_freshness_state(last_ag_time, ANTIGRAVITY_STALE_LIMIT_MINUTES) if ag_current_ok else "offline"
         
         active_pages = []
         if codex_state == "offline" or not last_codex_data:
@@ -1113,7 +1183,10 @@ def main():
             break
             
         # Sleep in 1-second ticks so changes in config.json or refresh triggers apply promptly
-        sleep_interval = max(1.0, loop_interval - 0.8) if show_splash else loop_interval
+        if current_page == "ag_offline":
+            sleep_interval = ANTIGRAVITY_OFFLINE_SECONDS
+        else:
+            sleep_interval = max(1.0, loop_interval - 0.8) if show_splash else loop_interval
         start_sleep = time.time()
         initial_theme = config.get("selected_theme", "default")
         while time.time() - start_sleep < sleep_interval:
