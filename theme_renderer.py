@@ -64,15 +64,8 @@ def draw_circle_arc(draw, cx, cy, r, pct, color, bg_color=(30,40,55), width=12):
 
 def format_age(timestamp):
     if not timestamp:
-        return ""
-    diff = int(time.time() - timestamp)
-    if diff < 60:
-        return "now"
-    mins = diff // 60
-    if mins < 60:
-        return f"{mins}m ago"
-    hours = mins // 60
-    return f"{hours}h ago"
+        return "--"
+    return datetime.fromtimestamp(timestamp).strftime("%I:%M %p").lstrip("0")
 
 def clamp_percent(p):
     if p is None:
@@ -305,5 +298,4 @@ def render_custom_theme(theme_id, logo_path, model_label, used_p, used_w, is_off
     out_img = render_orbital(pct_p, pct_w, model_label, age_str, status_color, is_warning, is_stale, is_offline, reset_str)
     out_img.convert("RGB").save(output_path, "JPEG", quality=95)
     return True
-
 

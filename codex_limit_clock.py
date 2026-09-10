@@ -508,6 +508,12 @@ def format_age(timestamp):
     return f"{hours}h ago"
 
 
+def format_update_time(timestamp):
+    if not timestamp:
+        return "--"
+    return datetime.fromtimestamp(timestamp).strftime("%I:%M %p").lstrip("0")
+
+
 def clamp_percent(p):
     if p is None:
         return None
@@ -634,7 +640,7 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
         except Exception:
             pass
 
-    draw_footer(d, 208, format_age(last_success_ts), is_stale, reset_str, footer_color)
+    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, reset_str, footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -673,7 +679,7 @@ def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekl
     
     draw_row(d, 105, "5H", five_used, accent, track_color, lbl_color, val_5h_color)
     draw_row(d, 160, "W", w_used, accent, track_color, lbl_color, val_w_color)
-    draw_footer(d, 208, format_age(last_success_ts), is_stale, text_color=footer_color)
+    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, text_color=footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
