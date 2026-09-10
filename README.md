@@ -101,15 +101,36 @@ The background runner is:
 .\start_codex_limit_clock.ps1
 ```
 
+For a no-window/no-taskbar-icon background start, use:
+
+```powershell
+wscript.exe .\start_codex_limit_clock_hidden.vbs
+```
+
 To create or replace the scheduled task for login auto-start:
 
 ```powershell
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PWD\start_codex_limit_clock.ps1`""
+$Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$PWD\start_codex_limit_clock_hidden.vbs`"" -WorkingDirectory "$PWD"
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName "CodexLimitClock" -Action $Action -Trigger $Trigger -Settings $Settings -Force
 Start-ScheduledTask -TaskName "CodexLimitClock"
 ```
+
+If scheduled task registration is blocked by Windows permissions, create a normal user Startup shortcut instead:
+
+```powershell
+$Startup = [Environment]::GetFolderPath("Startup")
+$ShortcutPath = Join-Path $Startup "SyncAI Smart Clock.lnk"
+$Shell = New-Object -ComObject WScript.Shell
+$Shortcut = $Shell.CreateShortcut($ShortcutPath)
+$Shortcut.TargetPath = "wscript.exe"
+$Shortcut.Arguments = "`"$PWD\start_codex_limit_clock_hidden.vbs`""
+$Shortcut.WorkingDirectory = "$PWD"
+$Shortcut.Save()
+```
+
+`start_codex_limit_clock.ps1` uses a named mutex, so duplicate launches exit instead of running multiple upload loops.
 
 Useful checks:
 

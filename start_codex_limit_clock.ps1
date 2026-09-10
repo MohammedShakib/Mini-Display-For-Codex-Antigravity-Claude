@@ -8,6 +8,14 @@ $ClockIp = "192.168.0.58"
 
 Set-Location $Root
 
+$MutexName = "Global\SyncAI_CodexLimitClock"
+$CreatedNew = $false
+$Mutex = New-Object System.Threading.Mutex($true, $MutexName, [ref]$CreatedNew)
+if (-not $CreatedNew) {
+    "$(Get-Date -Format s) launcher already running; exiting duplicate instance" | Out-File -FilePath $Log -Append -Encoding utf8
+    exit 0
+}
+
 while ($true) {
     try {
         & $Python -u $Script --clock-ip $ClockIp --loop 30 *>> $Log
