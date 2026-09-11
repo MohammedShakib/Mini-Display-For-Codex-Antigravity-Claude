@@ -15,6 +15,11 @@
 
 <br/>
 
+<img src="assets/syncai_clock_mockup.png" width="100%" alt="SyncAI Smart Clock Codex and Antigravity display mockup" style="border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,0.55);" />
+
+<br/>
+<br/>
+
 <img src="assets/web_dashboard_preview.png" width="100%" alt="SyncAI Web Dashboard Preview" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" />
 
 </div>
@@ -274,6 +279,7 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
 ├── assets/
 │   ├── codex_logo.png                 # Codex display logo
 │   ├── antigravity_logo.png           # Antigravity display logo
+│   ├── syncai_clock_mockup.png        # README branding/product mockup
 │   ├── architecture_syncai.png        # README architecture visual
 │   ├── web_dashboard_preview.png      # Web dashboard screenshot
 │   ├── preview_*_240.jpg              # 240x240 screen previews

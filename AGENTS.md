@@ -50,6 +50,7 @@ Antigravity usage:
 - Codex logo: `assets/codex_logo.png`.
 - Antigravity logo: `assets/antigravity_logo.png`.
 - README architecture diagram: `assets/architecture_syncai.png`.
+- README branding/product mockup: `assets/syncai_clock_mockup.png`.
 - `theme_renderer.py` contains alternate themes used when `selected_theme` is not `default`.
 
 Keep 240x240 readability in mind. Text must fit at this physical size.
