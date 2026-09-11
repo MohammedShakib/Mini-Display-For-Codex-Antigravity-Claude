@@ -801,25 +801,25 @@ def render_antigravity_cached_screen(
     five_used = clamp_percent(100.0 - five_hour_rem) if five_hour_rem is not None else None
     w_used = clamp_percent(100.0 - weekly_rem) if weekly_rem is not None else None
 
-    bg_color = (8, 17, 31, 255)
-    border_color = (58, 70, 92)
-    track_color = (18, 36, 51)
-    five_color = (110, 127, 175)
-    weekly_color = (118, 101, 156)
-    text_color = (231, 236, 244)
-    sub_color = (140, 151, 168)
-    footer_color = (127, 136, 151)
+    bg_color = (3, 4, 6, 255)
+    border_color = (68, 72, 82)
+    track_color = (18, 20, 24)
+    five_color = (176, 181, 190)
+    weekly_color = (126, 132, 142)
+    text_color = (245, 247, 250)
+    sub_color = (185, 190, 199)
+    footer_color = (132, 138, 148)
 
     img = Image.new("RGBA", (240, 240), bg_color)
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
-    draw_hollow_status_dot(d, (126, 135, 148))
+    draw_hollow_status_dot(d, (126, 132, 142))
 
     logo = load_logo(resolve_asset_path(logo_name), 38)
     if logo is not None:
         logo_layer = Image.new("RGBA", logo.size, (255, 255, 255, 0))
         logo_layer.alpha_composite(logo)
-        alpha = logo_layer.getchannel("A").point(lambda a: int(a * 0.68))
+        alpha = logo_layer.getchannel("A").point(lambda a: int(a * 0.55))
         logo_layer.putalpha(alpha)
         img.alpha_composite(logo_layer, ((240 - logo.width) // 2, 16))
 
@@ -829,7 +829,7 @@ def render_antigravity_cached_screen(
     d.text(((240 - (model_box[2] - model_box[0])) // 2, 58), model_label, fill=text_color, font=model_font)
     tag = "LAST KNOWN"
     tag_box = d.textbbox((0, 0), tag, font=tag_font)
-    d.text(((240 - (tag_box[2] - tag_box[0])) // 2, 78), tag, fill=(183, 167, 122), font=tag_font)
+    d.text(((240 - (tag_box[2] - tag_box[0])) // 2, 78), tag, fill=(164, 169, 178), font=tag_font)
 
     def row(y, label, percent, color):
         label_font = font(15, True)
