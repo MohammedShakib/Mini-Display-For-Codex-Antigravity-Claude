@@ -49,6 +49,7 @@ Antigravity usage:
 - Live dashboard preview: `assets/live_screen.jpg`.
 - Codex logo: `codex_logo.png` and `assets/codex_logo.png`.
 - Antigravity logo: `antigravity_logo.png` and `assets/antigravity_logo.png`.
+- README architecture diagram: `assets/architecture_syncai.png`.
 - `theme_renderer.py` contains alternate themes used when `selected_theme` is not `default`.
 
 Keep 240x240 readability in mind. Text must fit at this physical size.

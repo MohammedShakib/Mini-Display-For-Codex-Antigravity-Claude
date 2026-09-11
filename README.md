@@ -51,30 +51,9 @@
 
 ## ⚡ Architecture & How It Works
 
-```mermaid
-graph TD
-    subgraph "Local PC Environment"
-        CDX[("OpenAI Codex<br/>~/.codex/sessions/*.jsonl")] -->|Parse token_count events| ENGINE
-        AG[("Antigravity IDE<br/>gRPC Quota Endpoint")] -->|Direct process query| ENGINE
-        WEB["Flask Dashboard<br/>http://localhost:5050"] <-->|Hot-reload config / trigger sync| ENGINE
-        
-        ENGINE["SyncAI Core Engine<br/>(codex_limit_clock.py)"]
-        ENGINE -->|Render 240x240 High-DPI UI| PIL["Pillow Image Renderer<br/>(theme_renderer.py)"]
-        PIL -->|JPEG Buffer| OUT["codex_usage.jpg<br/>temp_codex_usage.jpg"]
-    end
-
-    subgraph "Smart Clock Hardware (LAN)"
-        OUT -->|HTTP POST /photo/upload| CLOCK["Smart Weather Clock<br/>240x240 IPS Display"]
-        ENGINE -->|HTTP GET /theme/toggle| CLOCK
-    end
-
-    classDef accent fill:#0284c7,stroke:#38bdf8,stroke-width:2px,color:#fff;
-    classDef hardware fill:#0f766e,stroke:#2dd4bf,stroke-width:2px,color:#fff;
-    classDef storage fill:#334155,stroke:#64748b,stroke-width:1px,color:#fff;
-    class ENGINE,PIL accent;
-    class CLOCK hardware;
-    class CDX,AG,WEB,OUT storage;
-```
+<p align="center">
+  <img src="assets/architecture_syncai.png" width="100%" alt="SyncAI local architecture diagram" />
+</p>
 
 1. **Zero External API Cost**: Queries only local artifacts already running on your machine.
 2. **Deterministic Refresh**: Renders crisp 240×240 JPEGs with antialiasing and sub-pixel glyph rendering.
