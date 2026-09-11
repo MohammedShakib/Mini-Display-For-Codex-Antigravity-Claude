@@ -44,7 +44,7 @@
 **SyncAI Smart Clock Pro Ultra** connects your local AI developer workflow directly to a physical 240×240 Smart Weather Clock sitting on your desk. It continuously monitors your active AI rate limits without needing any paid OpenAI or Google Cloud API tokens:
 
 - **OpenAI Codex**: Tracks 5-hour rolling session limits, weekly limits, and countdown to reset.
-- **Google Antigravity IDE**: Live quota metrics for both **Gemini** and **Claude / GPT** models extracted directly via the IDE's local gRPC server.
+- **Google Antigravity IDE**: Live quota metrics and reset timestamps for both **Gemini** and **Claude / GPT** models extracted directly via the IDE's local gRPC server.
 - **Smart Rotation & Alerting**: Rotates between displays, auto-detects whichever model you are actively using, and triggers a high-visibility warning theme whenever usage exceeds your alert threshold (default: 80%).
 
 ---

@@ -30,6 +30,7 @@ Antigravity usage:
 - Never print, log, or commit CSRF tokens from command lines.
 - Fallback source: Windows UI Automation reading the visible Settings > Models page.
 - If Antigravity is not currently readable, treat it as offline. Do not display cached Antigravity quota values.
+- Direct gRPC parsing exposes `five_hour_reset` and `weekly_reset` epoch seconds per model group when available.
 
 ## Screen Rotation Rules
 
@@ -37,6 +38,7 @@ Antigravity usage:
 - Antigravity offline placeholder is fixed at `10` seconds via `ANTIGRAVITY_OFFLINE_SECONDS`.
 - Antigravity offline screen must say `Open Antigravity IDE`.
 - Antigravity offline screen must not show old quota data.
+- Antigravity online screens should show the active model's 5-hour reset time in the footer when available.
 - Codex can continue showing latest local data, with reset-time correction.
 
 ## Rendering

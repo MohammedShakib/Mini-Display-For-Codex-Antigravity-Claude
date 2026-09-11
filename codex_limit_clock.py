@@ -324,6 +324,22 @@ def protobuf_floats(fields):
     return values
 
 
+def protobuf_timestamps(fields):
+    values = []
+    if not fields:
+        return values
+    for _, wire_type, value, child in fields:
+        if wire_type == 0:
+            number = int(value)
+            if 1_500_000_000 <= number <= 2_200_000_000:
+                values.append(number)
+            elif 1_500_000_000_000 <= number <= 2_200_000_000_000:
+                values.append(number // 1000)
+        if child:
+            values.extend(protobuf_timestamps(child))
+    return values
+
+
 def iter_protobuf_nodes(fields):
     if not fields:
         return
@@ -359,10 +375,16 @@ def parse_antigravity_quota_response(payload):
             if not floats:
                 continue
             remaining = max(0.0, min(100.0, floats[0] * 100.0))
+            timestamps = protobuf_timestamps(child)
+            reset_ts = timestamps[0] if timestamps else None
             if "Five Hour Limit Remaining" in child_strings or "5h" in child_strings:
                 group["five_hour_remaining"] = remaining
+                if reset_ts:
+                    group["five_hour_reset"] = reset_ts
             if "Weekly Limit Remaining" in child_strings or "weekly" in child_strings:
                 group["weekly_remaining"] = remaining
+                if reset_ts:
+                    group["weekly_reset"] = reset_ts
 
         if "five_hour_remaining" in group and "weekly_remaining" in group:
             groups[key] = group
@@ -514,6 +536,15 @@ def format_update_time(timestamp):
     return datetime.fromtimestamp(timestamp).strftime("%I:%M %p").lstrip("0")
 
 
+def format_reset_label(reset_ts):
+    if not reset_ts:
+        return "Reset --"
+    try:
+        return f"Reset {datetime.fromtimestamp(int(reset_ts)).strftime('%I:%M %p').lstrip('0')}"
+    except Exception:
+        return "Reset --"
+
+
 def clamp_percent(p):
     if p is None:
         return None
@@ -644,7 +675,17 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
-def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekly_rem, freshness_state, last_success_ts, output_path, alert_threshold=80.0):
+def render_antigravity_usage_screen(
+    logo_name,
+    model_label,
+    five_hour_rem,
+    weekly_rem,
+    freshness_state,
+    last_success_ts,
+    output_path,
+    alert_threshold=80.0,
+    five_hour_reset=None,
+):
     is_offline = freshness_state == "offline"
     is_stale = freshness_state == "stale"
     
@@ -679,7 +720,7 @@ def render_antigravity_usage_screen(logo_name, model_label, five_hour_rem, weekl
     
     draw_row(d, 105, "5H", five_used, accent, track_color, lbl_color, val_5h_color)
     draw_row(d, 160, "W", w_used, accent, track_color, lbl_color, val_w_color)
-    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, text_color=footer_color)
+    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, format_reset_label(five_hour_reset), footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -880,6 +921,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             rem_w = data.get("weekly_remaining")
             used_p = (100.0 - rem_p) if rem_p is not None else None
             used_w = (100.0 - rem_w) if rem_w is not None else None
+            reset_str = format_reset_label(data.get("five_hour_reset"))
             render_custom_theme(
                 theme_id=theme_id,
                 logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
@@ -891,7 +933,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
                 last_success_ts=data_state["ag"]["time"],
                 output_path=dash_temp_path,
                 alert_threshold=alert_threshold,
-                reset_str="5H Limit"
+                reset_str=reset_str
             )
             summary = f"ag_gemini [{theme_id}]"
         elif screen_name == "ag_claude":
@@ -900,6 +942,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             rem_w = data.get("weekly_remaining")
             used_p = (100.0 - rem_p) if rem_p is not None else None
             used_w = (100.0 - rem_w) if rem_w is not None else None
+            reset_str = format_reset_label(data.get("five_hour_reset"))
             render_custom_theme(
                 theme_id=theme_id,
                 logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
@@ -911,7 +954,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
                 last_success_ts=data_state["ag"]["time"],
                 output_path=dash_temp_path,
                 alert_threshold=alert_threshold,
-                reset_str="5H Limit"
+                reset_str=reset_str
             )
             summary = f"ag_claude [{theme_id}]"
         elif screen_name == "ag_offline":
@@ -926,11 +969,11 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             summary = "codex offline"
         elif screen_name == "ag_gemini":
             data = data_state["ag"]["data"]["groups"]["gemini"]
-            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"))
             summary = "ag_gemini"
         elif screen_name == "ag_claude":
             data = data_state["ag"]["data"]["groups"]["claude_gpt"]
-            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold)
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"))
             summary = "ag_claude"
         elif screen_name == "ag_offline":
             render_offline_screen(ANTIGRAVITY_LOGO_NAME, "Anti Gravity", data_state["ag"]["time"], dash_temp_path)
@@ -1169,10 +1212,14 @@ def main():
                 "gemini": {
                     "five_hour_remaining": ag_gem.get("five_hour_remaining"),
                     "weekly_remaining": ag_gem.get("weekly_remaining"),
+                    "five_hour_reset": ag_gem.get("five_hour_reset"),
+                    "weekly_reset": ag_gem.get("weekly_reset"),
                 },
                 "claude_gpt": {
                     "five_hour_remaining": ag_claude.get("five_hour_remaining"),
                     "weekly_remaining": ag_claude.get("weekly_remaining"),
+                    "five_hour_reset": ag_claude.get("five_hour_reset"),
+                    "weekly_reset": ag_claude.get("weekly_reset"),
                 },
             },
             "config": config,
