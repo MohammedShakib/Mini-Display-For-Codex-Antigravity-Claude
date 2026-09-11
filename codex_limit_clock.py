@@ -87,6 +87,27 @@ def load_runtime_state():
         return {}
 
 
+def load_cached_antigravity_data(previous_state):
+    ag_state = (previous_state or {}).get("ag") or {}
+    groups = {}
+    for key in ("gemini", "claude_gpt"):
+        group = ag_state.get(key) or {}
+        if any(group.get(field) is not None for field in ("five_hour_remaining", "weekly_remaining")):
+            groups[key] = {
+                "five_hour_remaining": group.get("five_hour_remaining"),
+                "weekly_remaining": group.get("weekly_remaining"),
+                "five_hour_reset": group.get("five_hour_reset"),
+                "weekly_reset": group.get("weekly_reset"),
+            }
+    if not groups:
+        return None
+    return {
+        "source": "cached",
+        "timestamp": ag_state.get("last_time"),
+        "groups": groups,
+    }
+
+
 
 def iter_recent_session_files(limit=40):
     root = Path.home() / ".codex" / "sessions"
@@ -604,6 +625,20 @@ def draw_progress_bar(draw, x, y, w, h, percent, accent_color, track_color=(25, 
         draw.rounded_rectangle((x, y, x + fill_w, y + h), radius=h//2, fill=accent_color)
 
 
+def draw_segmented_progress_bar(draw, x, y, w, h, percent, fill_color, track_color=(18, 36, 51)):
+    if percent is None:
+        return
+    draw.rounded_rectangle((x, y, x + w, y + h), radius=h // 2, fill=track_color)
+    if percent <= 0:
+        return
+    fill_w = min(w, max(h, int(w * percent / 100)))
+    step = 8
+    seg_w = 5
+    for sx in range(x, x + fill_w, step):
+        ex = min(sx + seg_w, x + fill_w)
+        draw.rounded_rectangle((sx, y, ex, y + h), radius=2, fill=fill_color)
+
+
 def draw_footer(draw, y, right_text_str, is_stale, left_text_str=None, text_color=None):
     muted = text_color if text_color else (150, 160, 180)
     amber = (255, 193, 7)
@@ -634,6 +669,10 @@ def draw_status_dot(draw, is_offline, is_stale, override_color=None):
     else:
         color = get_status_color(is_offline, is_stale)
     draw.ellipse((214, 16, 224, 26), fill=color)
+
+
+def draw_hollow_status_dot(draw, color=(126, 135, 148)):
+    draw.ellipse((214, 16, 224, 26), outline=color, width=2)
 
 
 def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), label_color=(150, 160, 180), val_color=(240, 240, 240)):
@@ -702,6 +741,17 @@ def render_antigravity_usage_screen(
     alert_threshold=80.0,
     five_hour_reset=None,
 ):
+    if freshness_state == "cached":
+        render_antigravity_cached_screen(
+            logo_name,
+            model_label,
+            five_hour_rem,
+            weekly_rem,
+            last_success_ts,
+            output_path,
+        )
+        return
+
     is_offline = freshness_state == "offline"
     is_stale = freshness_state == "stale"
     
@@ -737,6 +787,65 @@ def render_antigravity_usage_screen(
     draw_row(d, 105, "5H", five_used, accent, track_color, lbl_color, val_5h_color)
     draw_row(d, 160, "W", w_used, accent, track_color, lbl_color, val_w_color)
     draw_footer(d, 208, format_update_time(last_success_ts), is_stale, format_reset_label(five_hour_reset), footer_color)
+    img.convert("RGB").save(output_path, "JPEG", quality=92)
+
+
+def render_antigravity_cached_screen(
+    logo_name,
+    model_label,
+    five_hour_rem,
+    weekly_rem,
+    last_success_ts,
+    output_path,
+):
+    five_used = clamp_percent(100.0 - five_hour_rem) if five_hour_rem is not None else None
+    w_used = clamp_percent(100.0 - weekly_rem) if weekly_rem is not None else None
+
+    bg_color = (8, 17, 31, 255)
+    border_color = (58, 70, 92)
+    track_color = (18, 36, 51)
+    five_color = (110, 127, 175)
+    weekly_color = (118, 101, 156)
+    text_color = (231, 236, 244)
+    sub_color = (140, 151, 168)
+    footer_color = (127, 136, 151)
+
+    img = Image.new("RGBA", (240, 240), bg_color)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
+    draw_hollow_status_dot(d, (126, 135, 148))
+
+    logo = load_logo(resolve_asset_path(logo_name), 38)
+    if logo is not None:
+        logo_layer = Image.new("RGBA", logo.size, (255, 255, 255, 0))
+        logo_layer.alpha_composite(logo)
+        alpha = logo_layer.getchannel("A").point(lambda a: int(a * 0.68))
+        logo_layer.putalpha(alpha)
+        img.alpha_composite(logo_layer, ((240 - logo.width) // 2, 16))
+
+    model_font = font(14, True)
+    tag_font = font(11, True)
+    model_box = d.textbbox((0, 0), model_label, font=model_font)
+    d.text(((240 - (model_box[2] - model_box[0])) // 2, 58), model_label, fill=text_color, font=model_font)
+    tag = "LAST KNOWN"
+    tag_box = d.textbbox((0, 0), tag, font=tag_font)
+    d.text(((240 - (tag_box[2] - tag_box[0])) // 2, 78), tag, fill=(183, 167, 122), font=tag_font)
+
+    def row(y, label, percent, color):
+        label_font = font(15, True)
+        value_font = font(18, True)
+        d.text((16, y), label, fill=sub_color, font=label_font)
+        value = f"{percent:.0f}%" if percent is not None else "--"
+        value_box = d.textbbox((0, 0), value, font=value_font)
+        d.text((224 - (value_box[2] - value_box[0]), y - 3), value, fill=text_color, font=value_font)
+        draw_segmented_progress_bar(d, 16, y + 24, 208, 12, percent, color, track_color)
+
+    row(110, "5H", five_used, five_color)
+    row(160, "W", w_used, weekly_color)
+
+    age = format_age(last_success_ts)
+    footer = f"Updated {age}" if age else "Updated --"
+    d.text((16, 208), footer, fill=footer_color, font=font(13))
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -888,7 +997,23 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
         theme_id = load_config().get("selected_theme", "default")
 
     # 1. Pre-render the main dashboard image FIRST so there is zero render delay after splash
-    if theme_id and theme_id != "default":
+    if data_state["ag"]["state"] == "cached" and screen_name in ("ag_gemini", "ag_claude"):
+        group_name = "gemini" if screen_name == "ag_gemini" else "claude_gpt"
+        model_label = "GEMINI" if screen_name == "ag_gemini" else "CLAUDE/GPT"
+        data = (data_state["ag"]["data"] or {}).get("groups", {}).get(group_name, {})
+        render_antigravity_usage_screen(
+            ANTIGRAVITY_LOGO_NAME,
+            model_label,
+            data.get("five_hour_remaining"),
+            data.get("weekly_remaining"),
+            data_state["ag"]["state"],
+            data_state["ag"]["time"],
+            dash_temp_path,
+            alert_threshold,
+            data.get("five_hour_reset"),
+        )
+        summary = f"{screen_name} cached"
+    elif theme_id and theme_id != "default":
         if screen_name == "codex":
             codex_data = data_state["codex"]["data"] or {}
             used_p = codex_data.get("primary_percent")
@@ -1001,7 +1126,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
         if screen_name == "codex" and data_state["codex"]["data"]:
             render_splash_screen(LOGO_NAME, output_path)
             splash_shown = True
-        elif screen_name in ("ag_gemini", "ag_claude") and data_state["ag"]["data"]:
+        elif screen_name in ("ag_gemini", "ag_claude") and data_state["ag"]["data"] and data_state["ag"]["state"] != "cached":
             render_splash_screen(ANTIGRAVITY_LOGO_NAME, output_path)
             splash_shown = True
             
@@ -1136,9 +1261,9 @@ def main():
     
     last_codex_data = None
     last_codex_time = 0
-    last_ag_data = None
+    last_ag_data = load_cached_antigravity_data(previous_state)
     previous_ag_data = None
-    active_ag_model = "gemini"
+    active_ag_model = previous_state.get("active_ag_model") or "gemini"
     last_ag_time = float((previous_state.get("ag") or {}).get("last_time") or 0)
     page_index = 0
     is_first_run = True
@@ -1170,11 +1295,10 @@ def main():
                 last_ag_data = ag_data
                 last_ag_time = time.time()
         except Exception:
-            last_ag_data = None
             pass
             
         codex_state = get_freshness_state(last_codex_time, CODEX_STALE_LIMIT_MINUTES)
-        ag_state = get_freshness_state(last_ag_time, ANTIGRAVITY_STALE_LIMIT_MINUTES) if ag_current_ok else "offline"
+        ag_state = get_freshness_state(last_ag_time, ANTIGRAVITY_STALE_LIMIT_MINUTES) if ag_current_ok else ("cached" if last_ag_data else "offline")
         
         active_pages = []
         if codex_state == "offline" or not last_codex_data:

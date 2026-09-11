@@ -30,8 +30,9 @@ Antigravity usage:
 - The script discovers `language_server_windows_x64.exe`, local listening ports, and the process CSRF token.
 - Never print, log, or commit CSRF tokens from command lines.
 - Fallback source: Windows UI Automation reading the visible Settings > Models page.
-- If Antigravity is not currently readable, treat it as offline. Do not display cached Antigravity quota values.
+- If Antigravity is not currently readable, treat it as offline unless previously captured quota data is available for a clearly marked cached screen.
 - Direct gRPC parsing exposes `five_hour_reset` and `weekly_reset` epoch seconds per model group when available.
+- If previously captured Antigravity quota data exists, an unreadable/offline IDE may render a clearly marked `LAST KNOWN` / `cached` screen using muted frozen styling. Never present cached Antigravity data as live.
 
 ## Screen Rotation Rules
 
@@ -39,6 +40,7 @@ Antigravity usage:
 - Antigravity offline placeholder is fixed at `10` seconds via `ANTIGRAVITY_OFFLINE_SECONDS`.
 - Antigravity offline screen must say `Open Antigravity IDE`.
 - Antigravity offline screen must not show old quota data.
+- If cached Antigravity quota data exists, show it as a muted `LAST KNOWN` frozen screen instead of the offline placeholder.
 - Antigravity online screens should show the active model's 5-hour reset time in the footer when available.
 - Codex can continue showing latest local data, with reset-time correction.
 

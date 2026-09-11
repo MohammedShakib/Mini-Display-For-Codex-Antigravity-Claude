@@ -90,6 +90,8 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
   Automatically identifies whether you are prompting Gemini or Claude/GPT in Antigravity IDE by reading the active transcript change-events. The clock switches dynamically to the model you are actually using.
 - 🕒 **Stale Reset Recovery**  
   If a 5-hour or weekly reset timestamp has expired while Codex or the IDE was closed, SyncAI automatically corrects stale 100% percentages back to 0% rather than displaying outdated data.
+- 🧊 **Frozen Last-Known Antigravity View**  
+  When Antigravity IDE is closed but previous quota data exists, SyncAI shows a muted `LAST KNOWN` screen with cached 5H/Weekly values instead of pretending the data is live.
 - 🚨 **Configurable Alert Warning Thresholds**  
   Set your alert limit (default `80%`). As soon as your 5H or Weekly limit hits the threshold, the display shifts into an unmistakable neon crimson warning theme.
 - 🌐 **Modern Glassmorphism Web Dashboard**  
