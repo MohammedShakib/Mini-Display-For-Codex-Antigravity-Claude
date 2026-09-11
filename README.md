@@ -2,20 +2,20 @@
 
 <img src="assets/syncai_icon.png" width="96" alt="SyncAI Logo" style="border-radius: 20px; margin-bottom: 12px;" />
 
-# SyncAI Smart Clock Pro Ultra
-### 🕒 Mini Display & Quota Dashboard for Codex, Antigravity & Claude
+# SyncAI AI Quota Display
+### Mini Display Dashboard for Codex, Antigravity & Claude/GPT
 
-**Real-time AI limit tracking on a 240×240 Wi-Fi Smart Weather Clock — zero external API keys required.**
+**Real-time local AI quota tracking on a 240×240 Wi-Fi display — zero external API keys required.**
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Flask Dashboard](https://img.shields.io/badge/Dashboard-Flask%20%7C%20Port%205050-000000?style=for-the-badge&logo=flask&logoColor=white)](http://localhost:5050)
 [![Zero API Keys](https://img.shields.io/badge/Security-Zero%20External%20API%20Keys-10B981?style=for-the-badge&logo=shield&logoColor=white)](#data-sources--security)
-[![Display](https://img.shields.io/badge/Display-240%C3%97240%20IPS%20Clock-F59E0B?style=for-the-badge&logo=espressif&logoColor=white)](#hardware--clock-setup)
+[![Display](https://img.shields.io/badge/Display-240%C3%97240%20IPS-F59E0B?style=for-the-badge&logo=espressif&logoColor=white)](#hardware--clock-setup)
 
 <br/>
 
-<img src="assets/syncai_clock_mockup.png" width="100%" alt="SyncAI Smart Clock Codex and Antigravity display mockup" style="border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,0.55);" />
+<img src="assets/syncai_clock_mockup.png" width="100%" alt="SyncAI Codex and Antigravity quota display mockup" style="border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,0.55);" />
 
 <br/>
 <br/>
@@ -46,7 +46,7 @@
 
 ## 🌟 Overview
 
-**SyncAI Smart Clock Pro Ultra** connects your local AI developer workflow directly to a physical 240×240 Smart Weather Clock sitting on your desk. It continuously monitors your active AI rate limits without needing any paid OpenAI or Google Cloud API tokens:
+**SyncAI AI Quota Display** connects your local AI developer workflow directly to a physical 240×240 Wi-Fi display sitting on your desk. It continuously monitors your active AI rate limits without needing any paid OpenAI or Google Cloud API tokens:
 
 - **OpenAI Codex**: Tracks 5-hour rolling session limits, weekly limits, and countdown to reset.
 - **Google Antigravity IDE**: Live quota metrics and reset timestamps for both **Gemini** and **Claude / GPT** models extracted directly via the IDE's local gRPC server.
@@ -117,8 +117,8 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 ### 1. Clone & Install Dependencies
 
 ```powershell
-git clone https://github.com/MohammedShakib/Mini-Display-For-Codex-Antigravity-Claude.git "Smart Clock Pro Ultra"
-cd "Smart Clock Pro Ultra"
+git clone https://github.com/MohammedShakib/Mini-Display-For-Codex-Antigravity-Claude.git "SyncAI-Quota-Display"
+cd "SyncAI-Quota-Display"
 
 python -m pip install -r requirements.txt
 ```
@@ -189,7 +189,7 @@ The running loop hot-reloads `config.json` automatically on every iteration.
 
 | Key | Type | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `clock_ip` | `string` | `"192.168.0.58"` | The LAN IP address of your Smart Weather Clock. |
+| `clock_ip` | `string` | `"192.168.0.58"` | The LAN IP address of your 240×240 Wi-Fi display. |
 | `rotation_interval` | `integer` | `30` | Duration (in seconds) each screen remains visible before cycling. |
 | `ag_model_mode` | `string` | `"auto"` | Model filter: `"auto"` (active model), `"gemini"`, `"claude"`, or `"both"`. |
 | `alert_threshold` | `number` | `80` | Quota percentage that triggers the crimson warning UI theme. |
@@ -208,7 +208,7 @@ This is the preferred setup for normal Windows users. It starts the hidden VBS l
 
 ```powershell
 $Startup = [Environment]::GetFolderPath("Startup")
-$ShortcutPath = Join-Path $Startup "SyncAI Smart Clock.lnk"
+$ShortcutPath = Join-Path $Startup "SyncAI Quota Display.lnk"
 $Shell = New-Object -ComObject WScript.Shell
 $Shortcut = $Shell.CreateShortcut($ShortcutPath)
 $Shortcut.TargetPath = "wscript.exe"

@@ -1,6 +1,6 @@
 # Agent Notes
 
-This repository controls a 240x240 Smart Weather Clock from a Windows PC. The main goal is to display local Codex and Antigravity IDE quota usage on the physical clock without using external API keys.
+This repository turns a 240x240 Wi-Fi display clock into a local AI quota dashboard from a Windows PC. The main goal is to display local Codex and Antigravity IDE quota usage on the physical display without using external API keys.
 
 ## Important Runtime Facts
 
@@ -12,7 +12,7 @@ This repository controls a 240x240 Smart Weather Clock from a Windows PC. The ma
 - `start_codex_limit_clock.ps1` is the intended auto-restart launcher.
 - `start_codex_limit_clock_hidden.vbs` starts the PowerShell launcher with no visible window and is the preferred scheduled task action.
 - The PowerShell launcher uses a named mutex, `Global\SyncAI_CodexLimitClock`, to prevent duplicate upload loops.
-- On this PC, the old `CodexLimitClock` Scheduled Task is intentionally disabled because it previously surfaced a visible terminal. Prefer the per-user Startup shortcut `SyncAI Smart Clock.lnk`.
+- On this PC, the old `CodexLimitClock` Scheduled Task is intentionally disabled because it previously surfaced a visible terminal. Prefer the per-user Startup shortcut `SyncAI Quota Display.lnk`.
 
 ## Data Sources
 
