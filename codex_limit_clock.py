@@ -723,6 +723,16 @@ def draw_footer(draw, y, right_text_str, is_stale, left_text_str=None, text_colo
         draw.text((16, y), left_text_str, fill=muted, font=fnt)
 
 
+def draw_centered_footer(draw, y, text, is_stale, text_color=None):
+    muted = text_color if text_color else (150, 160, 180)
+    amber = (255, 193, 7)
+    fnt = font(16)
+    color = amber if is_stale else muted
+    footer_text = f"STALE - {text}" if is_stale else text
+    box = draw.textbbox((0, 0), footer_text, font=fnt)
+    draw.text(((240 - (box[2] - box[0])) // 2, y), footer_text, fill=color, font=fnt)
+
+
 def get_status_color(is_offline, is_stale):
     if is_offline:
         return (100, 100, 100)
@@ -748,7 +758,7 @@ def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), la
     draw.text((16, y), label, fill=label_color, font=fnt_label)
     if reset_text:
         label_box = draw.textbbox((0, 0), label, font=fnt_label)
-        draw.text((20 + (label_box[2] - label_box[0]), y + 4), f"({reset_text})", fill=label_color, font=font(12))
+        draw.text((20 + (label_box[2] - label_box[0]), y), f"({reset_text})", fill=label_color, font=font(18))
     val_str = f"{percent:.0f}%" if percent is not None else "--"
     fnt_val = font(22, True)
     box = draw.textbbox((0, 0), val_str, font=fnt_val)
@@ -788,9 +798,9 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
     weekly_reset = "done" if data.get("weekly_reset_elapsed") else format_reset_time(data.get("weekly_reset"), include_day=True)
     
     draw_row(d, 80, "5H", used_p, accent, track_color, lbl_color, val_p_color, primary_reset)
-    draw_row(d, 140, "W", used_w, accent, track_color, lbl_color, val_w_color, weekly_reset)
+    draw_row(d, 148, "W", used_w, accent, track_color, lbl_color, val_w_color, weekly_reset)
 
-    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, None, footer_color)
+    draw_centered_footer(d, 211, format_update_time(last_success_ts), is_stale, footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
