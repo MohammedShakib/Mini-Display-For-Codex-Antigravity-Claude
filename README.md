@@ -232,7 +232,7 @@ Check service status:
 ```powershell
 Get-ScheduledTask -TaskName "CodexLimitClock"
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' }
-Get-Content .\codex_limit_clock.log -Tail 25
+Get-Content .\runtime\codex_limit_clock.log -Tail 25
 ```
 
 Cleanly restart background service:
@@ -251,7 +251,7 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
 1. **Initial Clock AP Setup**: Connect phone/laptop to the clock's setup hotspot (`http://192.168.4.1/`) and enter your home 2.4 GHz Wi-Fi credentials.
 2. **Obtain Clock IP**: Note the IP assigned to the clock by your router (e.g., `192.168.0.58`).
 3. **Firmware Endpoints Used**:
-   - `POST /photo/upload`: Uploads the newly rendered 240×240 JPEG (`codex_usage.jpg`).
+   - `POST /photo/upload`: Uploads the newly rendered 240×240 JPEG (`runtime/codex_usage.jpg` locally, `codex_usage.jpg` on the clock).
    - `GET /theme/toggle?id=2&state=1`: Activates the photo viewer theme.
    - `GET /photo/toggle?name=codex_usage.jpg&state=1`: Selects the uploaded image as the active frame.
 
@@ -260,27 +260,29 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
 ## 📂 Project File Structure
 
 ```text
-├── codex_limit_clock.py           # Core orchestrator: scrapers, PIL renderer, uploader loop
-├── theme_renderer.py              # 240x240 High-DPI themes (Orbital Rings, Neon Arc meters)
-├── web_server.py                  # Local Flask dashboard backend (Port 5050)
-├── config.json                    # Hot-reloaded runtime configuration
-├── requirements.txt               # Minimal Python dependencies (Pillow, Flask, grpcio, protobuf)
+├── codex_limit_clock.py               # Core orchestrator: scrapers, PIL renderer, uploader loop
+├── theme_renderer.py                  # 240x240 High-DPI themes
+├── web_server.py                      # Local Flask dashboard backend (port 5050)
+├── config.json                        # Hot-reloaded runtime configuration
+├── requirements.txt                   # Minimal Python dependencies
+├── start_codex_limit_clock.ps1        # PowerShell launcher with named mutex locking
+├── start_codex_limit_clock_hidden.vbs # Hidden VBS wrapper for Windows startup
 │
 ├── web/
-│   └── index.html                 # Glassmorphism Web Control Dashboard UI
+│   └── index.html                     # Web control dashboard UI
 │
 ├── assets/
-│   ├── syncai_icon.png            # Application icons & brand assets
-│   ├── syncai_logo.png            # High-resolution project logo
-│   ├── web_dashboard_preview.png  # Web dashboard screenshot
-│   ├── preview_codex_240.jpg      # Preview: Codex 240x240 screen
-│   ├── preview_antigravity_*.jpg  # Previews: Gemini, Claude & Offline screens
-│   └── theme_preview_*.jpg        # Previews: Default & Orbital themes
+│   ├── codex_logo.png                 # Codex display logo
+│   ├── antigravity_logo.png           # Antigravity display logo
+│   ├── architecture_syncai.png        # README architecture visual
+│   ├── web_dashboard_preview.png      # Web dashboard screenshot
+│   ├── preview_*_240.jpg              # 240x240 screen previews
+│   └── theme_preview_*.jpg            # Theme previews
 │
-├── start_codex_limit_clock.ps1    # PowerShell launcher with named mutex locking
-├── start_codex_limit_clock_hidden.vbs # Zero-console VBS wrapper for stealth execution
-├── AGENTS.md                      # System prompt & developer documentation
-└── docs/ & firmware/              # Factory hardware manuals and firmware binaries
+├── runtime/                           # Ignored generated output: logs, state, upload JPGs
+├── docs/                              # Factory hardware manuals
+├── firmware/                          # Device firmware binaries
+└── AGENTS.md                          # Agent/developer operating notes
 ```
 
 ---
@@ -290,7 +292,7 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
 ### 1. Clock Does Not Update / Photo Upload Fails
 - Verify that both your PC and clock are on the exact same Wi-Fi subnet.
 - Test connection: `Test-NetConnection 192.168.0.58 -Port 80`
-- Check `codex_limit_clock.log` for HTTP errors or timeouts.
+- Check `runtime/codex_limit_clock.log` for HTTP errors or timeouts.
 
 ### 2. Codex Quota Appears Stale
 - Codex updates session logs when prompts are submitted. Send a message in Codex to trigger a fresh JSONL event.

@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.log
+runtime/
 codex_usage.jpg
 runtime_state.json
 assets/live_screen.jpg

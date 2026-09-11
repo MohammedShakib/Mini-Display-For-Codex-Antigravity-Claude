@@ -44,11 +44,11 @@ Antigravity usage:
 
 ## Rendering
 
-- Output image uploaded to the clock: `codex_usage.jpg`.
-- Temporary render file: `temp_codex_usage.jpg`.
+- Output image uploaded to the clock: `runtime/codex_usage.jpg`.
+- Temporary render file: `runtime/temp_codex_usage.jpg`.
 - Live dashboard preview: `assets/live_screen.jpg`.
-- Codex logo: `codex_logo.png` and `assets/codex_logo.png`.
-- Antigravity logo: `antigravity_logo.png` and `assets/antigravity_logo.png`.
+- Codex logo: `assets/codex_logo.png`.
+- Antigravity logo: `assets/antigravity_logo.png`.
 - README architecture diagram: `assets/architecture_syncai.png`.
 - `theme_renderer.py` contains alternate themes used when `selected_theme` is not `default`.
 
@@ -79,14 +79,17 @@ Check scheduled task and loop:
 ```powershell
 Get-ScheduledTask -TaskName "CodexLimitClock"
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' }
-Get-Content .\codex_limit_clock.log -Tail 20
+Get-Content .\runtime\codex_limit_clock.log -Tail 20
 ```
 
 Restart the scheduled loop cleanly:
 
 ```powershell
 Stop-ScheduledTask -TaskName "CodexLimitClock" -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+$self = $PID
+Get-CimInstance Win32_Process |
+  Where-Object { $_.ProcessId -ne $self -and ($_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1') } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 wscript.exe ".\start_codex_limit_clock_hidden.vbs"
 ```
 
@@ -102,10 +105,11 @@ If task registration is blocked, use a per-user Startup shortcut to the same VBS
 
 Do not commit generated runtime files:
 
-- `codex_limit_clock.log`
-- `codex_usage.jpg`
+- `runtime/`
+- `runtime/codex_limit_clock.log`
+- `runtime/codex_usage.jpg`
 - `temp_*.jpg`
-- `runtime_state.json`
+- `runtime/runtime_state.json`
 - `assets/live_screen.jpg`
 - root-level preview JPGs
 

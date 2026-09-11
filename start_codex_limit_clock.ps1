@@ -3,10 +3,12 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Python = "C:\Program Files\Python313\python.exe"
 $Script = Join-Path $Root "codex_limit_clock.py"
-$Log = Join-Path $Root "codex_limit_clock.log"
+$Runtime = Join-Path $Root "runtime"
+$Log = Join-Path $Runtime "codex_limit_clock.log"
 $ClockIp = "192.168.0.58"
 
 Set-Location $Root
+New-Item -ItemType Directory -Path $Runtime -Force | Out-Null
 
 $MutexName = "Global\SyncAI_CodexLimitClock"
 $CreatedNew = $false

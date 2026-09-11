@@ -8,7 +8,8 @@ app = Flask(__name__, static_folder="web", static_url_path="")
 
 BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_PATH = BASE_DIR / "config.json"
-STATE_PATH = BASE_DIR / "runtime_state.json"
+RUNTIME_DIR = BASE_DIR / "runtime"
+STATE_PATH = RUNTIME_DIR / "runtime_state.json"
 ASSETS_DIR = BASE_DIR / "assets"
 LIVE_PREVIEW_PATH = ASSETS_DIR / "live_screen.jpg"
 
@@ -60,10 +61,10 @@ def preview():
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
         return resp
-    # Fallback to codex_usage.jpg in root
-    root_img = BASE_DIR / "codex_usage.jpg"
-    if root_img.exists():
-        resp = send_file(str(root_img), mimetype="image/jpeg")
+    # Fallback to the current runtime output if the live preview has not been copied yet.
+    runtime_img = RUNTIME_DIR / "codex_usage.jpg"
+    if runtime_img.exists():
+        resp = send_file(str(runtime_img), mimetype="image/jpeg")
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return resp
     return "No preview available", 404

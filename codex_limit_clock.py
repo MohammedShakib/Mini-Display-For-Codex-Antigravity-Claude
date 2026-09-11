@@ -16,8 +16,13 @@ from PIL import Image, ImageDraw, ImageFont
 from theme_renderer import render_custom_theme
 
 
+BASE_DIR = Path(__file__).parent.resolve()
+ASSETS_DIR = BASE_DIR / "assets"
+RUNTIME_DIR = BASE_DIR / "runtime"
+
 DEFAULT_CLOCK_IP = "192.168.0.58"
 OUTPUT_NAME = "codex_usage.jpg"
+DEFAULT_OUTPUT_PATH = RUNTIME_DIR / OUTPUT_NAME
 LOGO_NAME = "codex_logo.png"
 ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
@@ -27,9 +32,19 @@ ANTIGRAVITY_OFFLINE_SECONDS = 10
 PERCENT_RE = re.compile(r"^(\d+(?:\.\d+)?)%$")
 ANTIGRAVITY_CSRF_RE = re.compile(r"--csrf_token\s+(\S+)")
 ANTIGRAVITY_QUOTA_METHOD = "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary"
-CONFIG_PATH = Path(__file__).with_name("config.json")
-STATE_PATH = Path(__file__).with_name("runtime_state.json")
-LIVE_PREVIEW_PATH = Path(__file__).parent / "assets" / "live_screen.jpg"
+CONFIG_PATH = BASE_DIR / "config.json"
+STATE_PATH = RUNTIME_DIR / "runtime_state.json"
+LIVE_PREVIEW_PATH = ASSETS_DIR / "live_screen.jpg"
+
+
+def resolve_asset_path(name_or_path):
+    path = Path(name_or_path)
+    if path.is_absolute() or path.exists():
+        return path
+    asset_path = ASSETS_DIR / path.name
+    if asset_path.exists():
+        return asset_path
+    return BASE_DIR / path.name
 
 
 def load_config():
@@ -53,6 +68,7 @@ def load_config():
 
 def save_runtime_state(state):
     try:
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         tmp = STATE_PATH.with_suffix(".tmp")
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=2)
@@ -570,7 +586,7 @@ def load_logo(logo_path, max_size):
 
 
 def draw_centered_logo(img, logo_path_str, y, max_size):
-    logo_path = Path(__file__).with_name(logo_path_str)
+    logo_path = resolve_asset_path(logo_path_str)
     logo = load_logo(logo_path, max_size)
     if logo is None:
         return False
@@ -732,7 +748,7 @@ def render_splash_screen(logo_name, output_path=None):
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
     
-    logo = Image.open(logo_name).convert("RGBA")
+    logo = Image.open(resolve_asset_path(logo_name)).convert("RGBA")
     logo.thumbnail((96, 96), Image.Resampling.LANCZOS)
     
     lx = (240 - logo.width) // 2
@@ -744,7 +760,7 @@ def render_splash_screen(logo_name, output_path=None):
 
 def render_logo_only_screen(logo_name, output_path, max_size=166):
     img = Image.new("RGBA", (240, 240), (2, 6, 16, 255))
-    logo = load_logo(Path(__file__).with_name(logo_name), max_size)
+    logo = load_logo(resolve_asset_path(logo_name), max_size)
     if logo is not None:
         x = (240 - logo.width) // 2
         y = (240 - logo.height) // 2
@@ -763,7 +779,7 @@ def render_antigravity_offline_screen(logo_name, last_seen_ts, output_path):
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=(70, 82, 110), width=1)
 
-    logo = load_logo(Path(__file__).with_name(logo_name), 58)
+    logo = load_logo(resolve_asset_path(logo_name), 58)
     if logo is not None:
         x = (240 - logo.width) // 2
         img.alpha_composite(logo, (x, 46))
@@ -888,7 +904,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
                     pass
             render_custom_theme(
                 theme_id=theme_id,
-                logo_path=Path(__file__).with_name(LOGO_NAME),
+                logo_path=resolve_asset_path(LOGO_NAME),
                 model_label="CODEX",
                 used_p=used_p,
                 used_w=used_w,
@@ -903,7 +919,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
         elif screen_name == "codex_offline":
             render_custom_theme(
                 theme_id=theme_id,
-                logo_path=Path(__file__).with_name(LOGO_NAME),
+                logo_path=resolve_asset_path(LOGO_NAME),
                 model_label="CODEX",
                 used_p=None,
                 used_w=None,
@@ -924,7 +940,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             reset_str = format_reset_label(data.get("five_hour_reset"))
             render_custom_theme(
                 theme_id=theme_id,
-                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
+                logo_path=resolve_asset_path(ANTIGRAVITY_LOGO_NAME),
                 model_label="GEMINI",
                 used_p=used_p,
                 used_w=used_w,
@@ -945,7 +961,7 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             reset_str = format_reset_label(data.get("five_hour_reset"))
             render_custom_theme(
                 theme_id=theme_id,
-                logo_path=Path(__file__).with_name(ANTIGRAVITY_LOGO_NAME),
+                logo_path=resolve_asset_path(ANTIGRAVITY_LOGO_NAME),
                 model_label="CLAUDE/GPT",
                 used_p=used_p,
                 used_w=used_w,
@@ -1105,7 +1121,7 @@ def determine_active_ag_model(ag_data, previous_ag_data, current_active_model="g
 def main():
     parser = argparse.ArgumentParser(description="Show local limit meter on Smart Weather Clock.")
     parser.add_argument("--clock-ip", default=os.getenv("CODEX_CLOCK_IP", DEFAULT_CLOCK_IP))
-    parser.add_argument("--output", default=OUTPUT_NAME)
+    parser.add_argument("--output", default=str(DEFAULT_OUTPUT_PATH))
     parser.add_argument("--screens", default="codex,antigravity", help="(Ignored) Handled dynamically.")
     parser.add_argument("--ag-model", default="auto", choices=["auto", "gemini", "claude", "both"], help="Anti Gravity model to display: auto (active model), gemini, claude, or both.")
     parser.add_argument("--no-splash", action="store_true", help="Disable the 1-second logo splash transition between screens.")
@@ -1113,7 +1129,9 @@ def main():
     parser.add_argument("--no-configure", action="store_true", help="Upload only; do not switch the clock to Photo mode.")
     args = parser.parse_args()
 
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     output_path = Path(args.output).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     previous_state = load_runtime_state()
     
     last_codex_data = None
