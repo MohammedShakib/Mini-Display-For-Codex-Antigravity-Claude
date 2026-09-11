@@ -12,6 +12,7 @@ This repository controls a 240x240 Smart Weather Clock from a Windows PC. The ma
 - `start_codex_limit_clock.ps1` is the intended auto-restart launcher.
 - `start_codex_limit_clock_hidden.vbs` starts the PowerShell launcher with no visible window and is the preferred scheduled task action.
 - The PowerShell launcher uses a named mutex, `Global\SyncAI_CodexLimitClock`, to prevent duplicate upload loops.
+- On this PC, the old `CodexLimitClock` Scheduled Task is intentionally disabled because it previously surfaced a visible terminal. Prefer the per-user Startup shortcut `SyncAI Smart Clock.lnk`.
 
 ## Data Sources
 
@@ -85,7 +86,7 @@ Restart the scheduled loop cleanly:
 ```powershell
 Stop-ScheduledTask -TaskName "CodexLimitClock" -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-Start-ScheduledTask -TaskName "CodexLimitClock"
+wscript.exe ".\start_codex_limit_clock_hidden.vbs"
 ```
 
 Preferred scheduled task action:

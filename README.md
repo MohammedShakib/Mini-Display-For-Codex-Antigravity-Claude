@@ -89,7 +89,7 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 | **OpenAI Codex (Default)** | **Antigravity: Gemini** | **Antigravity: Claude** |
 | :---: | :---: | :---: |
 | <img src="assets/preview_codex_240.jpg" width="220" alt="Codex Default" /> | <img src="assets/preview_antigravity_gemini_240.jpg" width="220" alt="Antigravity Gemini" /> | <img src="assets/preview_antigravity_claude_240.jpg" width="220" alt="Antigravity Claude" /> |
-| *5-Hour & Weekly meters with reset time* | *Real-time Gemini quota tracking* | *Real-time Claude 3.5 Sonnet quota* |
+| *5-Hour & Weekly meters with reset time* | *Real-time Gemini quota tracking* | *Real-time Claude / GPT quota tracking* |
 
 | **Orbital Rings (Futuristic Neon)** | **Warning Alert State (>80%)** | **Graceful Offline State** |
 | :---: | :---: | :---: |
@@ -122,7 +122,7 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 - **OS**: Windows 10 or Windows 11 (x64)
 - **Python**: Python 3.10 or higher
 - **Local Tools**:
-  - [OpenAI Codex](https://github.com/features/copilot) (logged in locally)
+  - OpenAI Codex CLI or extension installed and logged in locally
   - [Google Antigravity IDE](https://antigravity.google/) (installed and running)
 - **Hardware**: ESP8266 / ESP32-based 240×240 Smart Weather Clock connected to the same Wi-Fi router.
 
@@ -218,21 +218,9 @@ The running loop hot-reloads `config.json` automatically on every iteration.
 
 Run SyncAI completely hidden in the background on login with automatic crash recovery and duplicate process protection.
 
-### Method A: Register Windows Scheduled Task (Recommended)
+### Method A: User Startup Shortcut (Recommended, No Admin Rights Needed)
 
-Run PowerShell as Administrator or your current user:
-
-```powershell
-$Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$PWD\start_codex_limit_clock_hidden.vbs`"" -WorkingDirectory "$PWD"
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
-$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-Register-ScheduledTask -TaskName "CodexLimitClock" -Action $Action -Trigger $Trigger -Settings $Settings -Force
-Start-ScheduledTask -TaskName "CodexLimitClock"
-```
-
-### Method B: User Startup Shortcut (No Admin Rights Needed)
-
-If Windows Group Policy blocks Scheduled Tasks:
+This is the preferred setup for normal Windows users. It starts the hidden VBS launcher after login and avoids visible terminal windows.
 
 ```powershell
 $Startup = [Environment]::GetFolderPath("Startup")
@@ -244,6 +232,20 @@ $Shortcut.Arguments = "`"$PWD\start_codex_limit_clock_hidden.vbs`""
 $Shortcut.WorkingDirectory = "$PWD"
 $Shortcut.Save()
 ```
+
+### Method B: Register Windows Scheduled Task (Optional)
+
+Run PowerShell as Administrator or your current user:
+
+```powershell
+$Action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$PWD\start_codex_limit_clock_hidden.vbs`"" -WorkingDirectory "$PWD"
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "CodexLimitClock" -Action $Action -Trigger $Trigger -Settings $Settings -Force
+Start-ScheduledTask -TaskName "CodexLimitClock"
+```
+
+If Scheduled Task registration or editing returns `Access is denied`, use Method A. In this local setup the old `CodexLimitClock` task was disabled because it could open a visible PowerShell window if Windows launched it directly.
 
 ### Management Commands
 
@@ -258,7 +260,7 @@ Cleanly restart background service:
 ```powershell
 Stop-ScheduledTask -TaskName "CodexLimitClock" -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-Start-ScheduledTask -TaskName "CodexLimitClock"
+wscript.exe ".\start_codex_limit_clock_hidden.vbs"
 ```
 
 ---
