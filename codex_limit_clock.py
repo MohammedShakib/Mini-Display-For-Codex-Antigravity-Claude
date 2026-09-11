@@ -637,6 +637,19 @@ def format_reset_label(reset_ts):
         return "Reset --"
 
 
+def format_reset_time(reset_ts, include_day=False):
+    if not reset_ts:
+        return None
+    try:
+        dt = datetime.fromtimestamp(int(reset_ts))
+    except Exception:
+        return None
+    time_str = dt.strftime("%I:%M %p").lstrip("0")
+    if include_day:
+        return f"{dt.strftime('%a')} {time_str}"
+    return time_str
+
+
 def clamp_percent(p):
     if p is None:
         return None
@@ -730,8 +743,12 @@ def draw_hollow_status_dot(draw, color=(126, 135, 148)):
     draw.ellipse((214, 16, 224, 26), outline=color, width=2)
 
 
-def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), label_color=(150, 160, 180), val_color=(240, 240, 240)):
-    draw.text((16, y), label, fill=label_color, font=font(18, True))
+def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), label_color=(150, 160, 180), val_color=(240, 240, 240), reset_text=None):
+    fnt_label = font(18, True)
+    draw.text((16, y), label, fill=label_color, font=fnt_label)
+    if reset_text:
+        label_box = draw.textbbox((0, 0), label, font=fnt_label)
+        draw.text((20 + (label_box[2] - label_box[0]), y + 4), f"({reset_text})", fill=label_color, font=font(12))
     val_str = f"{percent:.0f}%" if percent is not None else "--"
     fnt_val = font(22, True)
     box = draw.textbbox((0, 0), val_str, font=fnt_val)
@@ -767,21 +784,13 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
     val_p_color = (255, 80, 95) if (is_warning and used_p is not None and used_p >= 80.0) else ((245, 210, 215) if is_warning else (240, 240, 240))
     val_w_color = (255, 80, 95) if (is_warning and used_w is not None and used_w >= 80.0) else ((245, 210, 215) if is_warning else (240, 240, 240))
     
-    draw_row(d, 80, "5H", used_p, accent, track_color, lbl_color, val_p_color)
-    draw_row(d, 140, "W", used_w, accent, track_color, lbl_color, val_w_color)
+    primary_reset = "done" if data.get("primary_reset_elapsed") else format_reset_time(data.get("primary_reset"))
+    weekly_reset = "done" if data.get("weekly_reset_elapsed") else format_reset_time(data.get("weekly_reset"), include_day=True)
     
-    reset_ts = data.get("primary_reset")
-    reset_str = None
-    if data.get("primary_reset_elapsed"):
-        reset_str = "Reset done"
-    elif reset_ts:
-        try:
-            if isinstance(reset_ts, (int, float)) or (isinstance(reset_ts, str) and reset_ts.isdigit()):
-                reset_str = f"Reset {datetime.fromtimestamp(int(reset_ts)).strftime('%I:%M %p').lstrip('0')}"
-        except Exception:
-            pass
+    draw_row(d, 80, "5H", used_p, accent, track_color, lbl_color, val_p_color, primary_reset)
+    draw_row(d, 140, "W", used_w, accent, track_color, lbl_color, val_w_color, weekly_reset)
 
-    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, reset_str, footer_color)
+    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, None, footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
