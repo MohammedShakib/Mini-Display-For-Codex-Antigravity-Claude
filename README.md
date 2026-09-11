@@ -136,7 +136,9 @@ Open `config.json` and set your clock's local Wi-Fi IP address:
   "ag_model_mode": "auto",
   "alert_threshold": 80,
   "show_splash": true,
-  "selected_theme": "default"
+  "selected_theme": "default",
+  "codex_ping_enabled": true,
+  "codex_ping_interval_minutes": 30
 }
 ```
 
@@ -197,6 +199,8 @@ The running loop hot-reloads `config.json` automatically on every iteration.
 | `alert_threshold` | `number` | `80` | Quota percentage that triggers the crimson warning UI theme. |
 | `show_splash` | `boolean` | `true` | Shows a clean 1-second brand logo transition between rotations. |
 | `selected_theme` | `string` | `"default"` | Visual theme ID: `"default"` (Obsidian cards) or `"orbital"` (Dual Neon Rings). |
+| `codex_ping_enabled` | `boolean` | `true` | Runs a tiny periodic Codex prompt so this PC receives a fresh account-level quota snapshot. |
+| `codex_ping_interval_minutes` | `integer` | `30` | Minimum minutes between Codex quota pings. Each ping consumes a small amount of Codex quota. |
 
 ---
 

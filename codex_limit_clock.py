@@ -28,6 +28,8 @@ ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
 ANTIGRAVITY_OFFLINE_SECONDS = 10
+CODEX_PING_DIR = Path(os.getenv("TEMP", str(RUNTIME_DIR))) / "codex-quota-ping"
+CODEX_PING_PROMPT = "Reply exactly: OK"
 
 PERCENT_RE = re.compile(r"^(\d+(?:\.\d+)?)%$")
 ANTIGRAVITY_CSRF_RE = re.compile(r"--csrf_token\s+(\S+)")
@@ -55,6 +57,8 @@ def load_config():
         "alert_threshold": 80,
         "show_splash": True,
         "selected_theme": "default",
+        "codex_ping_enabled": True,
+        "codex_ping_interval_minutes": 30,
     }
     if CONFIG_PATH.exists():
         try:
@@ -150,6 +154,22 @@ def apply_codex_reset_correction(data):
     return data
 
 
+def parse_timestamp_epoch(value):
+    if not value:
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            return float(text)
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0
+    return 0.0
+
+
 def find_latest_limits():
     best = None
     for path in iter_recent_session_files():
@@ -182,6 +202,41 @@ def find_latest_limits():
     if not best:
         raise RuntimeError("No Codex token_count event found in ~/.codex/sessions")
     return apply_codex_reset_correction(best)
+
+
+def should_ping_codex(last_codex_data, last_ping_time, interval_minutes):
+    interval_seconds = max(60, int(interval_minutes * 60))
+    now = time.time()
+    if last_ping_time and now - last_ping_time < interval_seconds:
+        return False
+    event_time = parse_timestamp_epoch((last_codex_data or {}).get("timestamp"))
+    if not event_time:
+        return True
+    return now - event_time >= interval_seconds
+
+
+def ping_codex_quota(timeout=120):
+    CODEX_PING_DIR.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "codex",
+            "exec",
+            "--cd",
+            str(CODEX_PING_DIR),
+            "--skip-git-repo-check",
+            "--sandbox",
+            "read-only",
+            "--ask-for-approval",
+            "never",
+            "--color",
+            "never",
+            CODEX_PING_PROMPT,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=timeout,
+        check=True,
+    )
 
 
 def powershell_json(script, timeout=10):
@@ -1261,6 +1316,8 @@ def main():
     
     last_codex_data = None
     last_codex_time = 0
+    last_codex_ping_time = float((previous_state.get("codex") or {}).get("last_ping_time") or 0)
+    last_codex_ping_status = (previous_state.get("codex") or {}).get("last_ping_status") or "never"
     last_ag_data = load_cached_antigravity_data(previous_state)
     previous_ag_data = None
     active_ag_model = previous_state.get("active_ag_model") or "gemini"
@@ -1276,14 +1333,28 @@ def main():
         show_splash = config.get("show_splash", not args.no_splash)
         alert_threshold = float(config.get("alert_threshold", 80))
         loop_interval = max(5, int(config.get("rotation_interval", args.loop)))
+        codex_ping_enabled = bool(config.get("codex_ping_enabled", True))
+        codex_ping_interval = max(5, int(config.get("codex_ping_interval_minutes", 30)))
 
         try:
             codex_data = find_latest_limits()
             if codex_data:
                 last_codex_data = codex_data
-                last_codex_time = time.time()
+                last_codex_time = parse_timestamp_epoch(codex_data.get("timestamp")) or time.time()
         except Exception:
             pass
+
+        if args.loop > 0 and codex_ping_enabled and should_ping_codex(last_codex_data, last_codex_ping_time, codex_ping_interval):
+            last_codex_ping_time = time.time()
+            try:
+                ping_codex_quota()
+                last_codex_ping_status = "ok"
+                codex_data = find_latest_limits()
+                if codex_data:
+                    last_codex_data = codex_data
+                    last_codex_time = parse_timestamp_epoch(codex_data.get("timestamp")) or time.time()
+            except Exception as exc:
+                last_codex_ping_status = f"error: {exc}"
 
         ag_current_ok = False
         try:
@@ -1347,6 +1418,9 @@ def main():
                 "weekly_percent": last_codex_data.get("weekly_percent") if last_codex_data else None,
                 "primary_reset": last_codex_data.get("primary_reset") if last_codex_data else None,
                 "last_time": last_codex_time,
+                "last_event_time": parse_timestamp_epoch(last_codex_data.get("timestamp")) if last_codex_data else 0,
+                "last_ping_time": last_codex_ping_time,
+                "last_ping_status": last_codex_ping_status,
             },
             "ag": {
                 "state": ag_state,

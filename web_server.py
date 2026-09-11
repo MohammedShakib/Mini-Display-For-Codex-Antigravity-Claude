@@ -22,6 +22,8 @@ def read_config():
         "alert_threshold": 80,
         "show_splash": True,
         "selected_theme": "default",
+        "codex_ping_enabled": True,
+        "codex_ping_interval_minutes": 30,
     }
     if CONFIG_PATH.exists():
         try:
@@ -103,6 +105,10 @@ def config_endpoint():
         if "selected_theme" in payload:
             updated["selected_theme"] = str(payload["selected_theme"]).strip()
             updated["force_refresh"] = True
+        if "codex_ping_enabled" in payload:
+            updated["codex_ping_enabled"] = bool(payload["codex_ping_enabled"])
+        if "codex_ping_interval_minutes" in payload:
+            updated["codex_ping_interval_minutes"] = max(5, int(payload["codex_ping_interval_minutes"]))
 
         saved = write_config(updated)
         return jsonify({"status": "ok", "config": saved})
