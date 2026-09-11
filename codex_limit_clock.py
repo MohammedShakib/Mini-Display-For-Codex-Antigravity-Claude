@@ -28,6 +28,7 @@ ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
 ANTIGRAVITY_OFFLINE_SECONDS = 10
+CODEX_PING_FAILURE_RETRY_SECONDS = 5 * 60
 CODEX_PING_DIR = Path(os.getenv("TEMP", str(RUNTIME_DIR))) / "codex-quota-ping"
 CODEX_PING_PROMPT = "Reply exactly: OK"
 
@@ -221,19 +222,20 @@ def ping_codex_quota(timeout=120):
         [
             "codex",
             "exec",
+            "-c",
+            'model_reasoning_effort="minimal"',
             "--cd",
             str(CODEX_PING_DIR),
             "--skip-git-repo-check",
             "--sandbox",
             "read-only",
-            "--ask-for-approval",
-            "never",
             "--color",
             "never",
-            CODEX_PING_PROMPT,
+            "-",
         ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        input=CODEX_PING_PROMPT,
+        capture_output=True,
+        text=True,
         timeout=timeout,
         check=True,
     )
@@ -1360,6 +1362,9 @@ def main():
             if codex_data:
                 last_codex_data = codex_data
                 last_codex_time = parse_timestamp_epoch(codex_data.get("timestamp")) or time.time()
+                if str(last_codex_ping_status).startswith("error") and last_codex_time > last_codex_ping_time:
+                    last_codex_ping_time = last_codex_time
+                    last_codex_ping_status = "ok"
         except Exception:
             pass
 
@@ -1372,7 +1377,12 @@ def main():
                 if codex_data:
                     last_codex_data = codex_data
                     last_codex_time = parse_timestamp_epoch(codex_data.get("timestamp")) or time.time()
+            except subprocess.CalledProcessError as exc:
+                last_codex_ping_time = max(0.0, time.time() - (codex_ping_interval * 60) + CODEX_PING_FAILURE_RETRY_SECONDS)
+                err = (exc.stderr or exc.stdout or str(exc)).strip()
+                last_codex_ping_status = f"error: {err[:240]}"
             except Exception as exc:
+                last_codex_ping_time = max(0.0, time.time() - (codex_ping_interval * 60) + CODEX_PING_FAILURE_RETRY_SECONDS)
                 last_codex_ping_status = f"error: {exc}"
 
         ag_current_ok = False
