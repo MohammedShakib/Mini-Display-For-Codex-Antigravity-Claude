@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import ssl
 import struct
 import subprocess
@@ -216,14 +217,35 @@ def should_ping_codex(last_codex_data, last_ping_time, interval_minutes):
     return now - event_time >= interval_seconds
 
 
+def find_codex_executable():
+    configured = os.getenv("CODEX_EXE")
+    if configured and Path(configured).exists():
+        return configured
+
+    found = shutil.which("codex") or shutil.which("codex.exe")
+    if found:
+        return found
+
+    extension_root = Path.home() / ".vscode" / "extensions"
+    candidates = list(extension_root.glob("openai.chatgpt-*/bin/windows-x86_64/codex.exe"))
+    candidates = [path for path in candidates if path.exists()]
+    if candidates:
+        candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+        return str(candidates[0])
+
+    raise FileNotFoundError("codex executable was not found in PATH or the VS Code extension directory")
+
+
 def ping_codex_quota(timeout=120):
     CODEX_PING_DIR.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
-            "codex",
+            find_codex_executable(),
             "exec",
             "-c",
-            'model_reasoning_effort="minimal"',
+            'web_search="disabled"',
+            "-c",
+            'model_reasoning_effort="none"',
             "--cd",
             str(CODEX_PING_DIR),
             "--skip-git-repo-check",
