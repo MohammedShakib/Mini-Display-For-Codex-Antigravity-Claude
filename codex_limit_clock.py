@@ -1,4 +1,5 @@
 import argparse
+import base64
 import json
 import os
 import re
@@ -7,10 +8,10 @@ import ssl
 import struct
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -28,6 +29,7 @@ LOGO_NAME = "codex_logo.png"
 ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
+GITHUB_STALE_LIMIT_MINUTES = 60
 ANTIGRAVITY_OFFLINE_SECONDS = 10
 CODEX_PING_FAILURE_RETRY_SECONDS = 5 * 60
 CODEX_PING_DIR = Path(os.getenv("TEMP", str(RUNTIME_DIR))) / "codex-quota-ping"
@@ -39,6 +41,7 @@ ANTIGRAVITY_QUOTA_METHOD = "/exa.language_server_pb.LanguageServerService/Retrie
 CONFIG_PATH = BASE_DIR / "config.json"
 STATE_PATH = RUNTIME_DIR / "runtime_state.json"
 LIVE_PREVIEW_PATH = ASSETS_DIR / "live_screen.jpg"
+CODEX_AUTH_PATH = Path.home() / ".codex" / "auth.json"
 
 
 def resolve_asset_path(name_or_path):
@@ -58,6 +61,15 @@ def load_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
+        "splash_duration_seconds": 1.5,
+        "codex_display_seconds": 30,
+        "antigravity_display_seconds": 20,
+        "github_enabled": True,
+        "github_display_seconds": 20,
+        "github_refresh_interval_minutes": 5,
+        "github_repo": "",
+        "github_branch": "",
+        "github_label": "SyncAI",
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
@@ -112,6 +124,88 @@ def load_cached_antigravity_data(previous_state):
         "timestamp": ag_state.get("last_time"),
         "groups": groups,
     }
+
+
+def load_cached_codex_data(previous_state):
+    codex_state = (previous_state or {}).get("codex") or {}
+    if codex_state.get("primary_percent") is None or codex_state.get("weekly_percent") is None:
+        return None
+    data = {
+        "source": "cached",
+        "timestamp": codex_state.get("last_event_time") or codex_state.get("last_time"),
+        "primary_percent": float(codex_state.get("primary_percent") or 0),
+        "weekly_percent": float(codex_state.get("weekly_percent") or 0),
+        "primary_reset": codex_state.get("primary_reset"),
+        "weekly_reset": codex_state.get("weekly_reset"),
+        "total_tokens": 0,
+    }
+    return apply_codex_reset_correction(data)
+
+
+def load_cached_github_data(previous_state):
+    gh_state = (previous_state or {}).get("github") or {}
+    if not gh_state.get("repo"):
+        return None
+    return {
+        "source": "cached",
+        "repo": gh_state.get("repo"),
+        "display_label": gh_state.get("display_label"),
+        "repo_name": gh_state.get("repo_name"),
+        "branch": gh_state.get("branch") or "main",
+        "today_commits": int(gh_state.get("today_commits") or 0),
+        "open_prs": int(gh_state.get("open_prs") or 0),
+        "last_push": gh_state.get("last_push"),
+        "latest_sha": gh_state.get("latest_sha"),
+        "latest_message": gh_state.get("latest_message"),
+        "latest_author": gh_state.get("latest_author"),
+        "latest_date": gh_state.get("latest_date"),
+        "local_dirty": bool(gh_state.get("local_dirty")),
+        "local_ahead": int(gh_state.get("local_ahead") or 0),
+        "local_behind": int(gh_state.get("local_behind") or 0),
+    }
+
+
+def decode_jwt_payload(token):
+    if not isinstance(token, str) or token.count(".") < 2:
+        return {}
+    payload = token.split(".", 2)[1]
+    payload += "=" * ((4 - len(payload) % 4) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(payload.encode("ascii"))
+        data = json.loads(decoded.decode("utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def get_codex_account_email():
+    try:
+        with open(CODEX_AUTH_PATH, "r", encoding="utf-8") as f:
+            auth = json.load(f)
+    except Exception:
+        return None
+
+    tokens = auth.get("tokens") or {}
+    payload = decode_jwt_payload(tokens.get("id_token"))
+    for key in ("email", "preferred_username", "login"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def codex_account_display_name(email):
+    if not email:
+        return None
+    name = str(email).split("@", 1)[0].strip()
+    return name or None
+
+
+def codex_account_footer_label(account_name, length=6):
+    if not account_name:
+        return None
+    compact = re.sub(r"\s+", "", str(account_name).strip())
+    return compact[:length] or None
 
 
 
@@ -261,6 +355,135 @@ def ping_codex_quota(timeout=120):
         timeout=timeout,
         check=True,
     )
+
+
+def run_git(args, timeout=8):
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or "git command failed").strip())
+    return proc.stdout.strip()
+
+
+def parse_github_repo(remote_url):
+    if not remote_url:
+        return None
+    text = remote_url.strip()
+    if text.startswith("git@github.com:"):
+        repo = text.split(":", 1)[1]
+    else:
+        parsed = urlparse(text)
+        if parsed.netloc.lower() != "github.com":
+            return None
+        repo = parsed.path.lstrip("/")
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+    parts = [part for part in repo.split("/") if part]
+    if len(parts) >= 2:
+        return f"{parts[0]}/{parts[1]}"
+    return None
+
+
+def get_local_git_status():
+    branch = ""
+    try:
+        branch = run_git(["branch", "--show-current"]) or "main"
+    except Exception:
+        branch = "main"
+
+    remote_repo = None
+    try:
+        remote_repo = parse_github_repo(run_git(["remote", "get-url", "origin"]))
+    except Exception:
+        pass
+
+    dirty = False
+    ahead = 0
+    behind = 0
+    try:
+        status = run_git(["status", "--porcelain=v2", "--branch"])
+        for line in status.splitlines():
+            if line.startswith("# branch.ab"):
+                match = re.search(r"\+(\d+)\s+-(\d+)", line)
+                if match:
+                    ahead = int(match.group(1))
+                    behind = int(match.group(2))
+            elif line and not line.startswith("#"):
+                dirty = True
+    except Exception:
+        pass
+
+    return {
+        "repo": remote_repo,
+        "branch": branch,
+        "dirty": dirty,
+        "ahead": ahead,
+        "behind": behind,
+    }
+
+
+def github_api_json(path_or_url, timeout=10):
+    url = path_or_url if path_or_url.startswith("https://") else f"https://api.github.com{path_or_url}"
+    req = request.Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "SyncAI-Quota-Display",
+        },
+    )
+    with request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def iso_utc_from_local_midnight():
+    local_midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_midnight.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def find_github_status(config):
+    local = get_local_git_status()
+    repo = (config.get("github_repo") or local.get("repo") or "").strip()
+    branch = (config.get("github_branch") or local.get("branch") or "main").strip()
+    if not repo:
+        raise RuntimeError("GitHub repository could not be detected from git remote origin")
+
+    repo_info = github_api_json(f"/repos/{repo}")
+    commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&per_page=5")
+    since = quote(iso_utc_from_local_midnight())
+    today_commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&since={since}&per_page=100")
+    pulls = github_api_json(f"/repos/{repo}/pulls?state=open&per_page=100")
+
+    latest = commits[0] if commits else {}
+    latest_commit = latest.get("commit") or {}
+    latest_author = (latest.get("author") or {}).get("login") or (latest_commit.get("author") or {}).get("name")
+    latest_message = (latest_commit.get("message") or "").splitlines()[0]
+    return {
+        "source": "github",
+        "repo": repo,
+        "display_label": (config.get("github_label") or repo.split("/", 1)[-1] or "GitHub").strip(),
+        "repo_name": repo.split("/", 1)[1] if "/" in repo else repo,
+        "branch": branch,
+        "today_commits": len(today_commits) if isinstance(today_commits, list) else 0,
+        "open_prs": len(pulls) if isinstance(pulls, list) else 0,
+        "last_push": repo_info.get("pushed_at"),
+        "latest_sha": (latest.get("sha") or "")[:7],
+        "latest_message": latest_message or "--",
+        "latest_author": latest_author or "--",
+        "latest_date": (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date"),
+        "local_dirty": bool(local.get("dirty")),
+        "local_ahead": int(local.get("ahead") or 0),
+        "local_behind": int(local.get("behind") or 0),
+    }
+
+
+def should_refresh_github(last_fetch_time, interval_minutes):
+    interval_seconds = max(60, int(interval_minutes * 60))
+    return not last_fetch_time or (time.time() - last_fetch_time) >= interval_seconds
 
 
 def powershell_json(script, timeout=10):
@@ -708,6 +931,32 @@ def draw_centered_logo(img, logo_path_str, y, max_size):
     return True
 
 
+def fit_text_middle(draw, text, fnt, max_width):
+    if not text:
+        return ""
+    if draw.textbbox((0, 0), text, font=fnt)[2] <= max_width:
+        return text
+    if "@" in text:
+        local, domain = text.split("@", 1)
+        for left_count in range(max(3, min(len(local), 14)), 2, -1):
+            candidate = f"{local[:left_count]}...@{domain}"
+            if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+                return candidate
+    for keep in range(max(4, len(text) - 1), 3, -1):
+        left = max(2, keep // 2)
+        right = max(2, keep - left)
+        candidate = f"{text[:left]}...{text[-right:]}"
+        if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+            return candidate
+    return "..."
+
+
+def draw_centered_text_fit(draw, text, y, fnt, fill, max_width=208):
+    fitted = fit_text_middle(draw, text, fnt, max_width)
+    box = draw.textbbox((0, 0), fitted, font=fnt)
+    draw.text(((240 - (box[2] - box[0])) // 2, y), fitted, fill=fill, font=fnt)
+
+
 def draw_progress_bar(draw, x, y, w, h, percent, accent_color, track_color=(25, 30, 40)):
     if percent is None:
         return
@@ -757,6 +1006,14 @@ def draw_centered_footer(draw, y, text, is_stale, text_color=None):
     draw.text(((240 - (box[2] - box[0])) // 2, y), footer_text, fill=color, font=fnt)
 
 
+def format_codex_footer(last_success_ts, account_label=None):
+    footer = format_update_time(last_success_ts)
+    label = codex_account_footer_label(account_label)
+    if label:
+        return f"{footer} / {label}"
+    return footer
+
+
 def get_status_color(is_offline, is_stale):
     if is_offline:
         return (100, 100, 100)
@@ -790,7 +1047,51 @@ def draw_row(draw, y, label, percent, accent_color, track_color=(25, 30, 40), la
     draw_progress_bar(draw, 16, y + 26, 208, 12, percent, accent_color, track_color)
 
 
-def render_codex_screen(data, freshness_state, last_success_ts, output_path, alert_threshold=80.0):
+def render_codex_cached_screen(data, last_success_ts, output_path, account_label=None):
+    used_p = clamp_percent(data.get("primary_percent", 0))
+    used_w = clamp_percent(data.get("weekly_percent", 0))
+
+    bg_color = (3, 4, 6, 255)
+    border_color = (68, 72, 82)
+    track_color = (18, 20, 24)
+    accent = (126, 132, 142)
+    text_color = (245, 247, 250)
+    sub_color = (185, 190, 199)
+    footer_color = (132, 138, 148)
+
+    img = Image.new("RGBA", (240, 240), bg_color)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
+    draw_hollow_status_dot(d, accent)
+
+    logo = load_logo(resolve_asset_path(LOGO_NAME), 38)
+    if logo is not None:
+        logo_layer = Image.new("RGBA", logo.size, (255, 255, 255, 0))
+        logo_layer.alpha_composite(logo)
+        alpha = logo_layer.getchannel("A").point(lambda a: int(a * 0.55))
+        logo_layer.putalpha(alpha)
+        img.alpha_composite(logo_layer, ((240 - logo.width) // 2, 16))
+
+    draw_centered_text_fit(d, "CODEX", 58, font(14, True), text_color, 208)
+    draw_centered_text_fit(d, "LAST KNOWN", 78, font(11, True), (164, 169, 178), 208)
+
+    draw_row(d, 110, "5H", used_p, accent, track_color, sub_color, text_color)
+    draw_row(d, 160, "W", used_w, accent, track_color, sub_color, text_color)
+
+    age = format_age(last_success_ts)
+    account_short = codex_account_footer_label(account_label)
+    footer = f"Updated {age}" if age else "Updated --"
+    if account_short:
+        footer = f"{footer} / {account_short}"
+    draw_centered_text_fit(d, footer, 208, font(13), footer_color, 208)
+    img.convert("RGB").save(output_path, "JPEG", quality=92)
+
+
+def render_codex_screen(data, freshness_state, last_success_ts, output_path, alert_threshold=80.0, account_label=None):
+    if freshness_state == "cached":
+        render_codex_cached_screen(data, last_success_ts, output_path, account_label)
+        return
+
     is_offline = freshness_state == "offline"
     is_stale = freshness_state == "stale"
     
@@ -824,7 +1125,7 @@ def render_codex_screen(data, freshness_state, last_success_ts, output_path, ale
     draw_row(d, 80, "5H", used_p, accent, track_color, lbl_color, val_p_color, primary_reset)
     draw_row(d, 148, "W", used_w, accent, track_color, lbl_color, val_w_color, weekly_reset)
 
-    draw_centered_footer(d, 211, format_update_time(last_success_ts), is_stale, footer_color)
+    draw_centered_footer(d, 211, format_codex_footer(last_success_ts, account_label), is_stale, footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -838,6 +1139,7 @@ def render_antigravity_usage_screen(
     output_path,
     alert_threshold=80.0,
     five_hour_reset=None,
+    weekly_reset=None,
 ):
     if freshness_state == "cached":
         render_antigravity_cached_screen(
@@ -847,6 +1149,8 @@ def render_antigravity_usage_screen(
             weekly_rem,
             last_success_ts,
             output_path,
+            five_hour_reset,
+            weekly_reset,
         )
         return
 
@@ -882,9 +1186,12 @@ def render_antigravity_usage_screen(
     val_5h_color = (255, 80, 95) if (is_warning and five_used is not None and five_used >= 80.0) else ((245, 210, 215) if is_warning else (240, 240, 240))
     val_w_color = (255, 80, 95) if (is_warning and w_used is not None and w_used >= 80.0) else ((245, 210, 215) if is_warning else (240, 240, 240))
     
-    draw_row(d, 105, "5H", five_used, accent, track_color, lbl_color, val_5h_color)
-    draw_row(d, 160, "W", w_used, accent, track_color, lbl_color, val_w_color)
-    draw_footer(d, 208, format_update_time(last_success_ts), is_stale, format_reset_label(five_hour_reset), footer_color)
+    five_reset = format_reset_time(five_hour_reset)
+    week_reset = format_reset_time(weekly_reset, include_day=True)
+
+    draw_row(d, 105, "5H", five_used, accent, track_color, lbl_color, val_5h_color, five_reset)
+    draw_row(d, 160, "W", w_used, accent, track_color, lbl_color, val_w_color, week_reset)
+    draw_centered_footer(d, 208, format_update_time(last_success_ts), is_stale, footer_color)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -895,6 +1202,8 @@ def render_antigravity_cached_screen(
     weekly_rem,
     last_success_ts,
     output_path,
+    five_hour_reset=None,
+    weekly_reset=None,
 ):
     five_used = clamp_percent(100.0 - five_hour_rem) if five_hour_rem is not None else None
     w_used = clamp_percent(100.0 - weekly_rem) if weekly_rem is not None else None
@@ -929,17 +1238,21 @@ def render_antigravity_cached_screen(
     tag_box = d.textbbox((0, 0), tag, font=tag_font)
     d.text(((240 - (tag_box[2] - tag_box[0])) // 2, 78), tag, fill=(164, 169, 178), font=tag_font)
 
-    def row(y, label, percent, color):
+    def row(y, label, percent, color, reset_text=None):
         label_font = font(15, True)
+        reset_font = font(15)
         value_font = font(18, True)
         d.text((16, y), label, fill=sub_color, font=label_font)
+        if reset_text:
+            label_box = d.textbbox((0, 0), label, font=label_font)
+            d.text((20 + (label_box[2] - label_box[0]), y), f"({reset_text})", fill=sub_color, font=reset_font)
         value = f"{percent:.0f}%" if percent is not None else "--"
         value_box = d.textbbox((0, 0), value, font=value_font)
         d.text((224 - (value_box[2] - value_box[0]), y - 3), value, fill=text_color, font=value_font)
         draw_segmented_progress_bar(d, 16, y + 24, 208, 12, percent, color, track_color)
 
-    row(110, "5H", five_used, five_color)
-    row(160, "W", w_used, weekly_color)
+    row(110, "5H", five_used, five_color, format_reset_time(five_hour_reset))
+    row(160, "W", w_used, weekly_color, format_reset_time(weekly_reset, include_day=True))
 
     age = format_age(last_success_ts)
     footer = f"Updated {age}" if age else "Updated --"
@@ -947,7 +1260,7 @@ def render_antigravity_cached_screen(
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
-def render_splash_screen(logo_name, output_path=None):
+def render_splash_screen(logo_name, output_path=None, subtitle=None):
     bg_color = (10, 12, 18, 255)
     border_color = (30, 40, 60)
     
@@ -960,7 +1273,12 @@ def render_splash_screen(logo_name, output_path=None):
     
     lx = (240 - logo.width) // 2
     ly = (240 - logo.height) // 2
+    if subtitle:
+        ly = max(54, ly - 18)
     img.alpha_composite(logo, (lx, ly))
+
+    if subtitle:
+        draw_centered_text_fit(d, subtitle, ly + logo.height + 13, font(16, True), (230, 235, 245), 214)
     
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
@@ -997,6 +1315,113 @@ def render_antigravity_offline_screen(logo_name, last_seen_ts, output_path):
     title_box = d.textbbox((0, 0), title, font=title_font)
     d.text(((240 - (title_box[2] - title_box[0])) // 2, 143), title, fill=(242, 247, 255), font=title_font)
 
+    img.convert("RGB").save(output_path, "JPEG", quality=92)
+
+
+def format_short_age(timestamp_or_iso):
+    ts = parse_timestamp_epoch(timestamp_or_iso)
+    if not ts:
+        return "--"
+    diff = max(0, int(time.time() - ts))
+    if diff < 60:
+        return "now"
+    mins = diff // 60
+    if mins < 60:
+        return f"{mins}m"
+    hours = mins // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    if days < 7:
+        return f"{days}d"
+    return datetime.fromtimestamp(ts).strftime("%b %-d" if os.name != "nt" else "%b %#d")
+
+
+def draw_github_mark(draw, x, y, size=28):
+    draw.ellipse((x, y, x + size, y + size), fill=(244, 247, 251))
+    fnt = font(12, True)
+    text = "GH"
+    box = draw.textbbox((0, 0), text, font=fnt)
+    draw.text(
+        (x + (size - (box[2] - box[0])) // 2, y + (size - (box[3] - box[1])) // 2 - 1),
+        text,
+        fill=(7, 12, 18),
+        font=fnt,
+    )
+
+
+def draw_git_branch_icon(draw, x, y, color):
+    draw.line((x + 5, y + 4, x + 5, y + 22, x + 22, y + 22), fill=color, width=3)
+    draw.ellipse((x, y, x + 10, y + 10), outline=color, width=3)
+    draw.ellipse((x, y + 17, x + 10, y + 27), outline=color, width=3)
+    draw.ellipse((x + 17, y + 17, x + 27, y + 27), outline=color, width=3)
+
+
+def draw_github_metric(draw, xy, label, value, accent):
+    x1, y1, x2, y2 = xy
+    draw.rounded_rectangle(xy, radius=8, outline=(31, 55, 78), width=1, fill=(7, 13, 20))
+    draw.text((x1 + 10, y1 + 8), label, fill=(162, 174, 194), font=font(11, True))
+    draw.text((x1 + 10, y1 + 21), value, fill=(244, 247, 251), font=font(21, True))
+    draw.rectangle((x1 + 8, y2 - 4, x2 - 8, y2 - 2), fill=accent)
+
+
+def render_github_screen(data, freshness_state, last_success_ts, output_path):
+    is_offline = freshness_state == "offline"
+    is_cached = freshness_state == "cached"
+    bg_color = (5, 9, 14, 255) if not is_offline else (3, 4, 6, 255)
+    border_color = (32, 55, 78) if not is_offline else (68, 72, 82)
+    text_color = (244, 247, 251)
+    sub_color = (163, 174, 194)
+    muted = (124, 136, 154)
+    blue = (82, 168, 255)
+    green = (65, 220, 118)
+    purple = (144, 126, 255)
+
+    img = Image.new("RGBA", (240, 240), bg_color)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
+    if is_cached:
+        draw_hollow_status_dot(d, muted)
+    else:
+        draw_status_dot(d, is_offline, False)
+
+    draw_github_mark(d, 16, 16, 30)
+    d.text((54, 18), "GITHUB", fill=text_color, font=font(18, True))
+    if is_cached:
+        d.text((126, 22), "LAST", fill=muted, font=font(9, True))
+
+    label = data.get("display_label") or data.get("repo_name") or "Repo"
+    branch = data.get("branch") or "main"
+    draw_git_branch_icon(d, 17, 50, blue)
+    repo_line = fit_text_middle(d, f"{label} / {branch}", font(18, True), 178)
+    d.text((52, 52), repo_line, fill=text_color, font=font(18, True))
+
+    draw_github_metric(d, (16, 84, 112, 128), "TODAY", str(data.get("today_commits", 0)), green)
+    draw_github_metric(d, (128, 84, 224, 128), "PUSH", format_short_age(data.get("last_push")), blue)
+
+    d.rounded_rectangle((16, 136, 224, 188), radius=8, outline=(31, 55, 78), width=1, fill=(7, 13, 20))
+    d.text((28, 143), "LATEST", fill=sub_color, font=font(11, True))
+    message = fit_text_middle(d, data.get("latest_message") or "--", font(16, True), 178)
+    d.text((28, 158), message, fill=text_color, font=font(16, True))
+    sha = data.get("latest_sha") or "-------"
+    author = data.get("latest_author") or "you"
+    meta = fit_text_middle(d, f"{sha} by {author}", font(11), 174)
+    d.text((28, 178), meta, fill=muted, font=font(11))
+
+    prs = data.get("open_prs", 0)
+    local_bits = []
+    if data.get("local_dirty"):
+        local_bits.append("dirty")
+    if data.get("local_ahead"):
+        local_bits.append(f"+{data.get('local_ahead')}")
+    if data.get("local_behind"):
+        local_bits.append(f"-{data.get('local_behind')}")
+    local = " ".join(local_bits) or "clean"
+    bottom = fit_text_middle(d, f"PR {prs}  |  {local}", font(14, True), 208)
+    d.text((16, 199), bottom, fill=purple if prs else sub_color, font=font(14, True))
+
+    footer = f"Updated {format_age(last_success_ts)}" if last_success_ts else "Updated --"
+    draw_centered_text_fit(d, footer, 215, font(12), muted, 208)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -1087,7 +1512,25 @@ def trigger_clock_refresh(clock_ip):
         pass
 
 
-def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_splash=True, alert_threshold=80.0, theme_id=None):
+def update_live_preview(source_path):
+    try:
+        import shutil
+        shutil.copy2(str(source_path), str(LIVE_PREVIEW_PATH))
+    except Exception as exc:
+        print(f"warning: live preview update failed: {exc}")
+
+
+def run_screen(
+    clock_ip,
+    output_path,
+    configure,
+    screen_name,
+    data_state,
+    show_splash=True,
+    alert_threshold=80.0,
+    theme_id=None,
+    splash_duration=1.5,
+):
     summary = ""
     dash_temp_path = output_path.with_name("temp_" + output_path.name)
     
@@ -1109,8 +1552,28 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             dash_temp_path,
             alert_threshold,
             data.get("five_hour_reset"),
+            data.get("weekly_reset"),
         )
         summary = f"{screen_name} cached"
+    elif screen_name == "github":
+        render_github_screen(
+            data_state["github"]["data"] or {},
+            data_state["github"]["state"],
+            data_state["github"]["time"],
+            dash_temp_path,
+        )
+        summary = "github cached" if data_state["github"]["state"] == "cached" else "github"
+    elif screen_name == "github_offline":
+        fallback = data_state["github"]["data"] or {
+            "display_label": data_state.get("github_label") or "GitHub",
+            "repo_name": "Repo",
+            "branch": "main",
+            "today_commits": 0,
+            "open_prs": 0,
+            "latest_message": "GitHub unavailable",
+        }
+        render_github_screen(fallback, "offline", data_state["github"]["time"], dash_temp_path)
+        summary = "github offline"
     elif theme_id and theme_id != "default":
         if screen_name == "codex":
             codex_data = data_state["codex"]["data"] or {}
@@ -1132,13 +1595,13 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
                 used_p=used_p,
                 used_w=used_w,
                 is_offline=(data_state["codex"]["state"] == "offline"),
-                is_stale=(data_state["codex"]["state"] == "stale"),
+                is_stale=(data_state["codex"]["state"] in ("stale", "cached")),
                 last_success_ts=data_state["codex"]["time"],
                 output_path=dash_temp_path,
                 alert_threshold=alert_threshold,
                 reset_str=reset_str
             )
-            summary = f"codex [{theme_id}]"
+            summary = f"codex {'cached ' if data_state['codex']['state'] == 'cached' else ''}[{theme_id}]"
         elif screen_name == "codex_offline":
             render_custom_theme(
                 theme_id=theme_id,
@@ -1201,18 +1664,25 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
             summary = f"ag offline [{theme_id}]"
     else:
         if screen_name == "codex":
-            render_codex_screen(data_state["codex"]["data"], data_state["codex"]["state"], data_state["codex"]["time"], dash_temp_path, alert_threshold)
-            summary = "codex"
+            render_codex_screen(
+                data_state["codex"]["data"],
+                data_state["codex"]["state"],
+                data_state["codex"]["time"],
+                dash_temp_path,
+                alert_threshold,
+                data_state.get("codex_account_name"),
+            )
+            summary = "codex cached" if data_state["codex"]["state"] == "cached" else "codex"
         elif screen_name == "codex_offline":
             render_offline_screen(LOGO_NAME, "Codex", data_state["codex"]["time"], dash_temp_path)
             summary = "codex offline"
         elif screen_name == "ag_gemini":
             data = data_state["ag"]["data"]["groups"]["gemini"]
-            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"))
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "GEMINI", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"), data.get("weekly_reset"))
             summary = "ag_gemini"
         elif screen_name == "ag_claude":
             data = data_state["ag"]["data"]["groups"]["claude_gpt"]
-            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"))
+            render_antigravity_usage_screen(ANTIGRAVITY_LOGO_NAME, "CLAUDE/GPT", data.get("five_hour_remaining"), data.get("weekly_remaining"), data_state["ag"]["state"], data_state["ag"]["time"], dash_temp_path, alert_threshold, data.get("five_hour_reset"), data.get("weekly_reset"))
             summary = "ag_claude"
         elif screen_name == "ag_offline":
             render_offline_screen(ANTIGRAVITY_LOGO_NAME, "Anti Gravity", data_state["ag"]["time"], dash_temp_path)
@@ -1222,30 +1692,29 @@ def run_screen(clock_ip, output_path, configure, screen_name, data_state, show_s
     if show_splash:
         splash_shown = False
         if screen_name == "codex" and data_state["codex"]["data"]:
-            render_splash_screen(LOGO_NAME, output_path)
+            render_splash_screen(LOGO_NAME, output_path, data_state.get("codex_account_name"))
             splash_shown = True
-        elif screen_name in ("ag_gemini", "ag_claude") and data_state["ag"]["data"] and data_state["ag"]["state"] != "cached":
+        elif screen_name in ("ag_gemini", "ag_claude") and data_state["ag"]["data"]:
             render_splash_screen(ANTIGRAVITY_LOGO_NAME, output_path)
             splash_shown = True
             
         if splash_shown:
-            upload_file(clock_ip, output_path)
-            trigger_clock_refresh(clock_ip)
+            update_live_preview(output_path)
             try:
-                import shutil
-                shutil.copy2(str(output_path), str(LIVE_PREVIEW_PATH))
-            except Exception:
-                pass
-            time.sleep(0.5)
+                upload_file(clock_ip, output_path)
+                trigger_clock_refresh(clock_ip)
+            except Exception as exc:
+                print(f"warning: splash upload failed: {exc}")
+            time.sleep(max(0.5, float(splash_duration)))
 
     # 3. Upload the pre-rendered main dashboard image immediately
-    status, _ = upload_file(clock_ip, dash_temp_path, filename=OUTPUT_NAME)
-    trigger_clock_refresh(clock_ip)
+    status = "preview-only"
+    update_live_preview(dash_temp_path)
     try:
-        import shutil
-        shutil.copy2(str(dash_temp_path), str(LIVE_PREVIEW_PATH))
-    except Exception:
-        pass
+        status, _ = upload_file(clock_ip, dash_temp_path, filename=OUTPUT_NAME)
+        trigger_clock_refresh(clock_ip)
+    except Exception as exc:
+        print(f"warning: dashboard upload failed: {exc}")
     if configure:
         configure_clock(clock_ip)
     print(f"uploaded {output_path.name} to {clock_ip} | {summary} status={status}")
@@ -1341,6 +1810,16 @@ def determine_active_ag_model(ag_data, previous_ag_data, current_active_model="g
     return current_active_model
 
 
+def page_display_seconds(page_name, config, fallback_interval):
+    if page_name == "ag_offline":
+        return ANTIGRAVITY_OFFLINE_SECONDS
+    if page_name.startswith("github"):
+        return max(5, int(config.get("github_display_seconds", fallback_interval)))
+    if page_name.startswith("ag_"):
+        return max(5, int(config.get("antigravity_display_seconds", fallback_interval)))
+    return max(5, int(config.get("codex_display_seconds", fallback_interval)))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Show local limit meter on Smart Weather Clock.")
     parser.add_argument("--clock-ip", default=os.getenv("CODEX_CLOCK_IP", DEFAULT_CLOCK_IP))
@@ -1357,14 +1836,19 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
     previous_state = load_runtime_state()
     
-    last_codex_data = None
-    last_codex_time = 0
+    last_codex_data = load_cached_codex_data(previous_state)
+    last_codex_time = float((previous_state.get("codex") or {}).get("last_time") or 0)
     last_codex_ping_time = float((previous_state.get("codex") or {}).get("last_ping_time") or 0)
     last_codex_ping_status = (previous_state.get("codex") or {}).get("last_ping_status") or "never"
+    codex_account_email = (previous_state.get("codex") or {}).get("account_email") or get_codex_account_email()
     last_ag_data = load_cached_antigravity_data(previous_state)
     previous_ag_data = None
     active_ag_model = previous_state.get("active_ag_model") or "gemini"
     last_ag_time = float((previous_state.get("ag") or {}).get("last_time") or 0)
+    last_github_data = load_cached_github_data(previous_state)
+    last_github_time = float((previous_state.get("github") or {}).get("last_time") or 0)
+    last_github_fetch_time = float((previous_state.get("github") or {}).get("last_fetch_time") or 0)
+    last_github_status = (previous_state.get("github") or {}).get("last_status") or "never"
     page_index = 0
     is_first_run = True
 
@@ -1374,10 +1858,14 @@ def main():
         active_clock_ip = config.get("clock_ip", args.clock_ip)
         ag_model_mode = config.get("ag_model_mode", args.ag_model)
         show_splash = config.get("show_splash", not args.no_splash)
+        splash_duration = max(0.5, float(config.get("splash_duration_seconds", 1.5)))
         alert_threshold = float(config.get("alert_threshold", 80))
         loop_interval = max(5, int(config.get("rotation_interval", args.loop)))
         codex_ping_enabled = bool(config.get("codex_ping_enabled", True))
         codex_ping_interval = max(5, int(config.get("codex_ping_interval_minutes", 30)))
+        github_enabled = bool(config.get("github_enabled", True))
+        github_refresh_interval = max(1, int(config.get("github_refresh_interval_minutes", 5)))
+        codex_account_email = get_codex_account_email() or codex_account_email
 
         try:
             codex_data = find_latest_limits()
@@ -1418,12 +1906,28 @@ def main():
                 last_ag_time = time.time()
         except Exception:
             pass
+
+        if github_enabled and should_refresh_github(last_github_fetch_time, github_refresh_interval):
+            last_github_fetch_time = time.time()
+            try:
+                github_data = find_github_status(config)
+                if github_data:
+                    last_github_data = github_data
+                    last_github_time = time.time()
+                    last_github_status = "ok"
+            except Exception as exc:
+                last_github_status = f"error: {str(exc)[:240]}"
             
         codex_state = get_freshness_state(last_codex_time, CODEX_STALE_LIMIT_MINUTES)
+        if codex_state == "offline" and last_codex_data:
+            codex_state = "cached"
         ag_state = get_freshness_state(last_ag_time, ANTIGRAVITY_STALE_LIMIT_MINUTES) if ag_current_ok else ("cached" if last_ag_data else "offline")
+        github_state = get_freshness_state(last_github_time, GITHUB_STALE_LIMIT_MINUTES) if github_enabled else "offline"
+        if github_state == "offline" and last_github_data:
+            github_state = "cached"
         
         active_pages = []
-        if codex_state == "offline" or not last_codex_data:
+        if not last_codex_data:
             active_pages.append("codex_offline")
         else:
             active_pages.append("codex")
@@ -1443,6 +1947,12 @@ def main():
                     active_pages.append("ag_claude")
                 else:
                     active_pages.append("ag_gemini")
+
+        if github_enabled:
+            if last_github_data:
+                active_pages.append("github")
+            else:
+                active_pages.append("github_offline")
             
         if not active_pages:
             active_pages = ["codex_offline"]
@@ -1452,7 +1962,11 @@ def main():
         
         data_state = {
             "codex": {"data": last_codex_data, "time": last_codex_time, "state": codex_state},
-            "ag": {"data": last_ag_data, "time": last_ag_time, "state": ag_state}
+            "ag": {"data": last_ag_data, "time": last_ag_time, "state": ag_state},
+            "github": {"data": last_github_data, "time": last_github_time, "state": github_state},
+            "github_label": config.get("github_label") or "GitHub",
+            "codex_account_email": codex_account_email,
+            "codex_account_name": codex_account_display_name(codex_account_email),
         }
 
         # Save runtime state for the local web dashboard
@@ -1468,10 +1982,12 @@ def main():
                 "primary_percent": last_codex_data.get("primary_percent") if last_codex_data else None,
                 "weekly_percent": last_codex_data.get("weekly_percent") if last_codex_data else None,
                 "primary_reset": last_codex_data.get("primary_reset") if last_codex_data else None,
+                "weekly_reset": last_codex_data.get("weekly_reset") if last_codex_data else None,
                 "last_time": last_codex_time,
                 "last_event_time": parse_timestamp_epoch(last_codex_data.get("timestamp")) if last_codex_data else 0,
                 "last_ping_time": last_codex_ping_time,
                 "last_ping_status": last_codex_ping_status,
+                "account_email": codex_account_email,
             },
             "ag": {
                 "state": ag_state,
@@ -1489,12 +2005,41 @@ def main():
                     "weekly_reset": ag_claude.get("weekly_reset"),
                 },
             },
+            "github": {
+                "state": github_state,
+                "last_time": last_github_time,
+                "last_fetch_time": last_github_fetch_time,
+                "last_status": last_github_status,
+                "repo": (last_github_data or {}).get("repo"),
+                "display_label": (last_github_data or {}).get("display_label"),
+                "repo_name": (last_github_data or {}).get("repo_name"),
+                "branch": (last_github_data or {}).get("branch"),
+                "today_commits": (last_github_data or {}).get("today_commits"),
+                "open_prs": (last_github_data or {}).get("open_prs"),
+                "last_push": (last_github_data or {}).get("last_push"),
+                "latest_sha": (last_github_data or {}).get("latest_sha"),
+                "latest_message": (last_github_data or {}).get("latest_message"),
+                "latest_author": (last_github_data or {}).get("latest_author"),
+                "latest_date": (last_github_data or {}).get("latest_date"),
+                "local_dirty": (last_github_data or {}).get("local_dirty"),
+                "local_ahead": (last_github_data or {}).get("local_ahead"),
+                "local_behind": (last_github_data or {}).get("local_behind"),
+            },
             "config": config,
         })
         
         try:
             should_configure = not args.no_configure and is_first_run
-            run_screen(active_clock_ip, output_path, should_configure, current_page, data_state, show_splash=show_splash, alert_threshold=alert_threshold)
+            run_screen(
+                active_clock_ip,
+                output_path,
+                should_configure,
+                current_page,
+                data_state,
+                show_splash=show_splash,
+                alert_threshold=alert_threshold,
+                splash_duration=splash_duration,
+            )
             is_first_run = False
         except Exception as exc:
             print(f"error: {exc}")
@@ -1503,10 +2048,7 @@ def main():
             break
             
         # Sleep in 1-second ticks so changes in config.json or refresh triggers apply promptly
-        if current_page == "ag_offline":
-            sleep_interval = ANTIGRAVITY_OFFLINE_SECONDS
-        else:
-            sleep_interval = max(1.0, loop_interval - 0.8) if show_splash else loop_interval
+        sleep_interval = page_display_seconds(current_page, config, loop_interval)
         start_sleep = time.time()
         initial_theme = config.get("selected_theme", "default")
         while time.time() - start_sleep < sleep_interval:

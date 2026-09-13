@@ -21,6 +21,15 @@ def read_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
+        "splash_duration_seconds": 1.5,
+        "codex_display_seconds": 30,
+        "antigravity_display_seconds": 20,
+        "github_enabled": True,
+        "github_display_seconds": 20,
+        "github_refresh_interval_minutes": 5,
+        "github_repo": "",
+        "github_branch": "",
+        "github_label": "SyncAI",
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
@@ -102,6 +111,24 @@ def config_endpoint():
             updated["alert_threshold"] = max(10, min(100, int(payload["alert_threshold"])))
         if "show_splash" in payload:
             updated["show_splash"] = bool(payload["show_splash"])
+        if "splash_duration_seconds" in payload:
+            updated["splash_duration_seconds"] = max(0.5, min(5.0, float(payload["splash_duration_seconds"])))
+        if "codex_display_seconds" in payload:
+            updated["codex_display_seconds"] = max(5, int(payload["codex_display_seconds"]))
+        if "antigravity_display_seconds" in payload:
+            updated["antigravity_display_seconds"] = max(5, int(payload["antigravity_display_seconds"]))
+        if "github_enabled" in payload:
+            updated["github_enabled"] = bool(payload["github_enabled"])
+        if "github_display_seconds" in payload:
+            updated["github_display_seconds"] = max(5, int(payload["github_display_seconds"]))
+        if "github_refresh_interval_minutes" in payload:
+            updated["github_refresh_interval_minutes"] = max(1, int(payload["github_refresh_interval_minutes"]))
+        if "github_repo" in payload:
+            updated["github_repo"] = str(payload["github_repo"]).strip()
+        if "github_branch" in payload:
+            updated["github_branch"] = str(payload["github_branch"]).strip()
+        if "github_label" in payload:
+            updated["github_label"] = str(payload["github_label"]).strip()
         if "selected_theme" in payload:
             updated["selected_theme"] = str(payload["selected_theme"]).strip()
             updated["force_refresh"] = True
