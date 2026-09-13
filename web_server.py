@@ -21,15 +21,17 @@ def read_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
-        "splash_duration_seconds": 1.5,
-        "codex_display_seconds": 30,
-        "antigravity_display_seconds": 20,
+        "splash_duration_seconds": 2,
+        "codex_display_seconds": 15,
+        "antigravity_display_seconds": 15,
         "github_enabled": True,
-        "github_display_seconds": 20,
-        "github_refresh_interval_minutes": 5,
+        "github_display_seconds": 15,
+        "github_refresh_interval_minutes": 1,
         "github_repo": "",
         "github_branch": "",
-        "github_label": "SyncAI",
+        "github_label": "",
+        "github_activity_enabled": True,
+        "github_user": "",
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
@@ -129,6 +131,10 @@ def config_endpoint():
             updated["github_branch"] = str(payload["github_branch"]).strip()
         if "github_label" in payload:
             updated["github_label"] = str(payload["github_label"]).strip()
+        if "github_activity_enabled" in payload:
+            updated["github_activity_enabled"] = bool(payload["github_activity_enabled"])
+        if "github_user" in payload:
+            updated["github_user"] = str(payload["github_user"]).strip()
         if "selected_theme" in payload:
             updated["selected_theme"] = str(payload["selected_theme"]).strip()
             updated["force_refresh"] = True

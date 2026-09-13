@@ -27,6 +27,7 @@ OUTPUT_NAME = "codex_usage.jpg"
 DEFAULT_OUTPUT_PATH = RUNTIME_DIR / OUTPUT_NAME
 LOGO_NAME = "codex_logo.png"
 ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
+GITHUB_LOGO_NAME = "github_logo.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
 GITHUB_STALE_LIMIT_MINUTES = 60
@@ -61,15 +62,17 @@ def load_config():
         "ag_model_mode": "auto",
         "alert_threshold": 80,
         "show_splash": True,
-        "splash_duration_seconds": 1.5,
-        "codex_display_seconds": 30,
-        "antigravity_display_seconds": 20,
+        "splash_duration_seconds": 2,
+        "codex_display_seconds": 15,
+        "antigravity_display_seconds": 15,
         "github_enabled": True,
-        "github_display_seconds": 20,
-        "github_refresh_interval_minutes": 5,
+        "github_display_seconds": 15,
+        "github_refresh_interval_minutes": 1,
         "github_repo": "",
         "github_branch": "",
-        "github_label": "SyncAI",
+        "github_label": "",
+        "github_activity_enabled": True,
+        "github_user": "",
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
@@ -445,10 +448,75 @@ def iso_utc_from_local_midnight():
     return local_midnight.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def github_user_from_repo(repo):
+    return repo.split("/", 1)[0] if repo and "/" in repo else None
+
+
+def humanize_repo_name(repo):
+    name = repo.split("/", 1)[-1] if repo else "Repo"
+    name = re.sub(r"[-_]+", " ", name)
+    name = re.sub(r"\b(for|codex|antigravity|claude)\b", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\s+", " ", name).strip()
+    words = name.split()
+    if len(words) > 2:
+        name = " ".join(words[:2])
+    return name or "Repo"
+
+
+def latest_public_push_activity(user):
+    if not user:
+        return None
+    try:
+        events = github_api_json(f"/users/{quote(user)}/events/public?per_page=30")
+    except Exception:
+        return None
+    if not isinstance(events, list):
+        return None
+
+    midnight_ts = parse_timestamp_epoch(iso_utc_from_local_midnight())
+    today_count = 0
+    latest = None
+    for event in events:
+        if event.get("type") != "PushEvent":
+            continue
+        payload = event.get("payload") or {}
+        commits = payload.get("commits") or []
+        if not commits:
+            continue
+        event_ts = parse_timestamp_epoch(event.get("created_at"))
+        if event_ts >= midnight_ts:
+            today_count += len(commits)
+        if latest is None:
+            repo_name = (event.get("repo") or {}).get("name")
+            ref = payload.get("ref") or ""
+            branch = ref.replace("refs/heads/", "") if ref.startswith("refs/heads/") else ref or "main"
+            commit = commits[-1] if commits else {}
+            message = (commit.get("message") or "").splitlines()
+            latest = {
+                "repo": repo_name,
+                "branch": branch,
+                "last_push": event.get("created_at"),
+                "latest_sha": (commit.get("sha") or "")[:7],
+                "latest_message": message[0] if message else "",
+                "latest_author": ((commit.get("author") or {}).get("name") or user),
+            }
+
+    if latest:
+        latest["today_commits"] = today_count
+    return latest
+
+
 def find_github_status(config):
     local = get_local_git_status()
-    repo = (config.get("github_repo") or local.get("repo") or "").strip()
-    branch = (config.get("github_branch") or local.get("branch") or "main").strip()
+    configured_repo = (config.get("github_repo") or "").strip()
+    local_repo = local.get("repo") or ""
+    configured_user = (config.get("github_user") or "").strip()
+    activity = None
+    if config.get("github_activity_enabled", True):
+        activity = latest_public_push_activity(configured_user or github_user_from_repo(configured_repo or local_repo))
+
+    repo = (configured_repo or (activity or {}).get("repo") or local_repo or "").strip()
+    branch = (config.get("github_branch") or (activity or {}).get("branch") or local.get("branch") or "main").strip()
     if not repo:
         raise RuntimeError("GitHub repository could not be detected from git remote origin")
 
@@ -462,18 +530,19 @@ def find_github_status(config):
     latest_commit = latest.get("commit") or {}
     latest_author = (latest.get("author") or {}).get("login") or (latest_commit.get("author") or {}).get("name")
     latest_message = (latest_commit.get("message") or "").splitlines()[0]
+    display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
     return {
-        "source": "github",
+        "source": "github_activity" if activity else "github",
         "repo": repo,
-        "display_label": (config.get("github_label") or repo.split("/", 1)[-1] or "GitHub").strip(),
+        "display_label": display_label,
         "repo_name": repo.split("/", 1)[1] if "/" in repo else repo,
         "branch": branch,
-        "today_commits": len(today_commits) if isinstance(today_commits, list) else 0,
+        "today_commits": int((activity or {}).get("today_commits") or (len(today_commits) if isinstance(today_commits, list) else 0)),
         "open_prs": len(pulls) if isinstance(pulls, list) else 0,
-        "last_push": repo_info.get("pushed_at"),
-        "latest_sha": (latest.get("sha") or "")[:7],
-        "latest_message": latest_message or "--",
-        "latest_author": latest_author or "--",
+        "last_push": (activity or {}).get("last_push") or repo_info.get("pushed_at"),
+        "latest_sha": (activity or {}).get("latest_sha") or (latest.get("sha") or "")[:7],
+        "latest_message": (activity or {}).get("latest_message") or latest_message or "--",
+        "latest_author": (activity or {}).get("latest_author") or latest_author or "--",
         "latest_date": (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date"),
         "local_dirty": bool(local.get("dirty")),
         "local_ahead": int(local.get("ahead") or 0),
@@ -913,6 +982,36 @@ def load_logo(logo_path, max_size):
         for r, g, b, a in logo.getdata():
             cleaned.append((r, g, b, 0 if r < 8 and g < 8 and b < 8 else a))
         logo.putdata(cleaned)
+    elif "github" in logo_path.name.lower():
+        pixels = logo.load()
+        w, h = logo.size
+        seen = set()
+        stack = []
+        for x in range(w):
+            stack.append((x, 0))
+            stack.append((x, h - 1))
+        for y in range(h):
+            stack.append((0, y))
+            stack.append((w - 1, y))
+        while stack:
+            x, y = stack.pop()
+            if (x, y) in seen or not (0 <= x < w and 0 <= y < h):
+                continue
+            r, g, b, a = pixels[x, y]
+            if a == 0 or not (r > 235 and g > 235 and b > 235):
+                continue
+            seen.add((x, y))
+            pixels[x, y] = (255, 255, 255, 0)
+            stack.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+        converted = []
+        for r, g, b, a in logo.getdata():
+            if a == 0:
+                converted.append((r, g, b, a))
+            elif r < 80 and g < 80 and b < 80:
+                converted.append((248, 250, 252, a))
+            else:
+                converted.append((5, 9, 14, a))
+        logo.putdata(converted)
 
     alpha_box = logo.getchannel("A").getbbox()
     if alpha_box:
@@ -951,10 +1050,47 @@ def fit_text_middle(draw, text, fnt, max_width):
     return "..."
 
 
+def fit_text_end(draw, text, fnt, max_width):
+    text = str(text or "")
+    if draw.textbbox((0, 0), text, font=fnt)[2] <= max_width:
+        return text
+    ellipsis = "..."
+    for keep in range(len(text) - 1, 1, -1):
+        candidate = f"{text[:keep]}{ellipsis}"
+        if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+            return candidate
+    return ellipsis
+
+
 def draw_centered_text_fit(draw, text, y, fnt, fill, max_width=208):
     fitted = fit_text_middle(draw, text, fnt, max_width)
     box = draw.textbbox((0, 0), fitted, font=fnt)
     draw.text(((240 - (box[2] - box[0])) // 2, y), fitted, fill=fill, font=fnt)
+
+
+def wrap_text_lines(draw, text, fnt, max_width, max_lines=2):
+    words = str(text or "").split()
+    if not words:
+        return ["--"]
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+            current = candidate
+            continue
+        if current:
+            lines.append(current)
+        current = word
+        if len(lines) >= max_lines:
+            break
+    if current and len(lines) < max_lines:
+        lines.append(current)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+    if len(lines) == max_lines and words:
+        lines[-1] = fit_text_middle(draw, lines[-1], fnt, max_width)
+    return lines
 
 
 def draw_progress_bar(draw, x, y, w, h, percent, accent_color, track_color=(25, 30, 40)):
@@ -1268,8 +1404,9 @@ def render_splash_screen(logo_name, output_path=None, subtitle=None):
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
     
-    logo = Image.open(resolve_asset_path(logo_name)).convert("RGBA")
-    logo.thumbnail((96, 96), Image.Resampling.LANCZOS)
+    logo = load_logo(resolve_asset_path(logo_name), 96)
+    if logo is None:
+        logo = Image.new("RGBA", (1, 1), (255, 255, 255, 0))
     
     lx = (240 - logo.width) // 2
     ly = (240 - logo.height) // 2
@@ -1351,10 +1488,10 @@ def draw_github_mark(draw, x, y, size=28):
 
 
 def draw_git_branch_icon(draw, x, y, color):
-    draw.line((x + 5, y + 4, x + 5, y + 22, x + 22, y + 22), fill=color, width=3)
-    draw.ellipse((x, y, x + 10, y + 10), outline=color, width=3)
-    draw.ellipse((x, y + 17, x + 10, y + 27), outline=color, width=3)
-    draw.ellipse((x + 17, y + 17, x + 27, y + 27), outline=color, width=3)
+    draw.line((x + 4, y + 3, x + 4, y + 18, x + 18, y + 18), fill=color, width=2)
+    draw.ellipse((x, y, x + 8, y + 8), outline=color, width=2)
+    draw.ellipse((x, y + 14, x + 8, y + 22), outline=color, width=2)
+    draw.ellipse((x + 14, y + 14, x + 22, y + 22), outline=color, width=2)
 
 
 def draw_github_metric(draw, xy, label, value, accent):
@@ -1368,60 +1505,59 @@ def draw_github_metric(draw, xy, label, value, accent):
 def render_github_screen(data, freshness_state, last_success_ts, output_path):
     is_offline = freshness_state == "offline"
     is_cached = freshness_state == "cached"
-    bg_color = (5, 9, 14, 255) if not is_offline else (3, 4, 6, 255)
-    border_color = (32, 55, 78) if not is_offline else (68, 72, 82)
+    bg_color = (2, 8, 18, 255) if not is_offline else (3, 4, 6, 255)
+    border_color = (25, 172, 255) if not is_offline else (68, 72, 82)
     text_color = (244, 247, 251)
-    sub_color = (163, 174, 194)
+    sub_color = (174, 187, 210)
     muted = (124, 136, 154)
-    blue = (82, 168, 255)
-    green = (65, 220, 118)
-    purple = (144, 126, 255)
+    cyan = (35, 218, 255)
 
     img = Image.new("RGBA", (240, 240), bg_color)
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=1)
+    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=2)
     if is_cached:
         draw_hollow_status_dot(d, muted)
     else:
         draw_status_dot(d, is_offline, False)
 
-    draw_github_mark(d, 16, 16, 30)
-    d.text((54, 18), "GITHUB", fill=text_color, font=font(18, True))
-    if is_cached:
-        d.text((126, 22), "LAST", fill=muted, font=font(9, True))
+    logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 34)
+    if logo is not None:
+        img.alpha_composite(logo, (18, 14))
 
-    label = data.get("display_label") or data.get("repo_name") or "Repo"
-    branch = data.get("branch") or "main"
-    draw_git_branch_icon(d, 17, 50, blue)
-    repo_line = fit_text_middle(d, f"{label} / {branch}", font(18, True), 178)
-    d.text((52, 52), repo_line, fill=text_color, font=font(18, True))
+    today = int(data.get("today_commits") or 0)
+    commit_word = "commit" if today == 1 else "commits"
+    draw_git_branch_icon(d, 23, 58, cyan)
+    d.text((56, 58), "Today:", fill=sub_color, font=font(14, True))
+    d.text((108, 56), f"{today} {commit_word}", fill=text_color, font=font(18, True))
 
-    draw_github_metric(d, (16, 84, 112, 128), "TODAY", str(data.get("today_commits", 0)), green)
-    draw_github_metric(d, (128, 84, 224, 128), "PUSH", format_short_age(data.get("last_push")), blue)
+    last_age = format_short_age(data.get("last_push"))
+    last_text = "now" if last_age == "now" else f"{last_age} ago"
+    d.ellipse((24, 91, 44, 111), outline=cyan, width=2)
+    d.line((34, 97, 34, 104, 39, 104), fill=cyan, width=2)
+    d.text((56, 91), "Last:", fill=sub_color, font=font(14, True))
+    d.text((98, 89), last_text, fill=text_color, font=font(18, True))
 
-    d.rounded_rectangle((16, 136, 224, 188), radius=8, outline=(31, 55, 78), width=1, fill=(7, 13, 20))
-    d.text((28, 143), "LATEST", fill=sub_color, font=font(11, True))
-    message = fit_text_middle(d, data.get("latest_message") or "--", font(16, True), 178)
-    d.text((28, 158), message, fill=text_color, font=font(16, True))
+    d.line((18, 122, 222, 122), fill=(17, 73, 128), width=2)
+    d.text((18, 134), "LATEST", fill=cyan, font=font(13, True))
+
+    message_font = font(14, True)
+    message = fit_text_middle(d, data.get("latest_message") or "--", message_font, 210)
+    d.text((18, 153), message, fill=text_color, font=message_font)
+
     sha = data.get("latest_sha") or "-------"
-    author = data.get("latest_author") or "you"
-    meta = fit_text_middle(d, f"{sha} by {author}", font(11), 174)
-    d.text((28, 178), meta, fill=muted, font=font(11))
+    chip_y = 178
+    chip_font = font(14, True)
+    chip_box = d.textbbox((0, 0), sha, font=chip_font)
+    chip_w = min(92, chip_box[2] - chip_box[0] + 22)
+    d.rounded_rectangle((18, chip_y, 18 + chip_w, chip_y + 23), radius=7, fill=(15, 38, 69), outline=(25, 72, 121), width=1)
+    d.text((29, chip_y + 2), fit_text_middle(d, sha, chip_font, chip_w - 18), fill=(210, 224, 246), font=chip_font)
 
-    prs = data.get("open_prs", 0)
-    local_bits = []
-    if data.get("local_dirty"):
-        local_bits.append("dirty")
-    if data.get("local_ahead"):
-        local_bits.append(f"+{data.get('local_ahead')}")
-    if data.get("local_behind"):
-        local_bits.append(f"-{data.get('local_behind')}")
-    local = " ".join(local_bits) or "clean"
-    bottom = fit_text_middle(d, f"PR {prs}  |  {local}", font(14, True), 208)
-    d.text((16, 199), bottom, fill=purple if prs else sub_color, font=font(14, True))
-
-    footer = f"Updated {format_age(last_success_ts)}" if last_success_ts else "Updated --"
-    draw_centered_text_fit(d, footer, 215, font(12), muted, 208)
+    repo_label = data.get("display_label") or humanize_repo_name(data.get("repo") or data.get("repo_name") or "")
+    repo_text = fit_text_middle(d, repo_label, font(13, True), 112)
+    updated_text = f"{format_age(last_success_ts) if last_success_ts else '--'}"
+    d.text((18, 211), repo_text, fill=sub_color, font=font(13, True))
+    updated_box = d.textbbox((0, 0), updated_text, font=font(12))
+    d.text((222 - (updated_box[2] - updated_box[0]), 212), updated_text, fill=muted, font=font(12))
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -1696,6 +1832,9 @@ def run_screen(
             splash_shown = True
         elif screen_name in ("ag_gemini", "ag_claude") and data_state["ag"]["data"]:
             render_splash_screen(ANTIGRAVITY_LOGO_NAME, output_path)
+            splash_shown = True
+        elif screen_name == "github" and data_state["github"]["data"]:
+            render_splash_screen(GITHUB_LOGO_NAME, output_path)
             splash_shown = True
             
         if splash_shown:
