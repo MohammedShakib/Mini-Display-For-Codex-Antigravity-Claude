@@ -1713,6 +1713,29 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
         img.convert("RGB").save(output_path, "JPEG", quality=92)
         return
 
+    today = int(data.get("today_commits") or 0)
+    if today == 0:
+        logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 58)
+        if logo is not None:
+            img.alpha_composite(logo, ((240 - logo.width) // 2, 44))
+
+        title = "No activity today"
+        title_font = font(25, True)
+        title_box = d.textbbox((0, 0), title, font=title_font)
+        d.text(((240 - (title_box[2] - title_box[0])) // 2, 111), title, fill=text_color, font=title_font)
+
+        detail = "One commit is enough."
+        detail_font = font(17)
+        detail_box = d.textbbox((0, 0), detail, font=detail_font)
+        d.text(((240 - (detail_box[2] - detail_box[0])) // 2, 148), detail, fill=sub_color, font=detail_font)
+
+        updated_font = font(14)
+        updated_text = f"Updated {format_age(last_success_ts) if last_success_ts else '--'}"
+        updated_box = d.textbbox((0, 0), updated_text, font=updated_font)
+        d.text(((240 - (updated_box[2] - updated_box[0])) // 2, 213), updated_text, fill=sub_color, font=updated_font)
+        img.convert("RGB").save(output_path, "JPEG", quality=92)
+        return
+
     logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 32)
     if logo is not None:
         img.alpha_composite(logo, (17, 16))
@@ -1727,7 +1750,6 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
         img.alpha_composite(branch_icon, (60, 42))
     d.text((88, 44), fit_text_middle(d, branch, branch_font, 112), fill=sub_color, font=branch_font)
 
-    today = int(data.get("today_commits") or 0)
     today_unit = (data.get("today_label") or "").strip()
     if not today_unit:
         today_unit = "commit" if today == 1 else "commits"
