@@ -28,6 +28,7 @@ DEFAULT_OUTPUT_PATH = RUNTIME_DIR / OUTPUT_NAME
 LOGO_NAME = "codex_logo.png"
 ANTIGRAVITY_LOGO_NAME = "antigravity_logo.png"
 GITHUB_LOGO_NAME = "github_logo.png"
+GIT_BRANCH_ICON_NAME = "git_branch_icon.png"
 ANTIGRAVITY_STALE_LIMIT_MINUTES = 30
 CODEX_STALE_LIMIT_MINUTES = 30
 GITHUB_STALE_LIMIT_MINUTES = 60
@@ -925,6 +926,17 @@ def font(size, bold=False):
     return ImageFont.load_default()
 
 
+def mono_font(size, bold=False):
+    names = [
+        "C:/Windows/Fonts/consolab.ttf" if bold else "C:/Windows/Fonts/consola.ttf",
+        "C:/Windows/Fonts/lucon.ttf",
+    ]
+    for name in names:
+        if Path(name).exists():
+            return ImageFont.truetype(name, size)
+    return font(size, bold)
+
+
 def format_age(timestamp):
     if not timestamp:
         return ""
@@ -1091,6 +1103,54 @@ def wrap_text_lines(draw, text, fnt, max_width, max_lines=2):
     if len(lines) == max_lines and words:
         lines[-1] = fit_text_middle(draw, lines[-1], fnt, max_width)
     return lines
+
+
+def wrap_commit_message(draw, text, fnt, max_width, max_lines=2):
+    words = str(text or "").strip().split()
+    if not words:
+        return ["--"]
+
+    lines = []
+    current = ""
+    used_all_words = True
+    for index, word in enumerate(words):
+        candidate = f"{current} {word}".strip()
+        if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+            current = candidate
+            continue
+
+        if current:
+            lines.append(current)
+            current = word
+        else:
+            lines.append(fit_text_end(draw, word, fnt, max_width))
+            current = ""
+
+        if len(lines) >= max_lines:
+            used_all_words = index >= len(words)
+            break
+
+    if current and len(lines) < max_lines:
+        lines.append(current)
+    elif current:
+        used_all_words = False
+
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        used_all_words = False
+
+    if not used_all_words and lines:
+        base = lines[-1].rstrip(".")
+        ellipsis = "..."
+        for keep in range(len(base), 0, -1):
+            candidate = f"{base[:keep].rstrip()}{ellipsis}"
+            if draw.textbbox((0, 0), candidate, font=fnt)[2] <= max_width:
+                lines[-1] = candidate
+                break
+        else:
+            lines[-1] = fit_text_end(draw, lines[-1], fnt, max_width)
+
+    return [fit_text_end(draw, line, fnt, max_width) for line in lines[:max_lines]]
 
 
 def draw_progress_bar(draw, x, y, w, h, percent, accent_color, track_color=(25, 30, 40)):
@@ -1502,62 +1562,121 @@ def draw_github_metric(draw, xy, label, value, accent):
     draw.rectangle((x1 + 8, y2 - 4, x2 - 8, y2 - 2), fill=accent)
 
 
+def draw_github_activity_card(draw, xy, kind, label, value, accent, text_color, sub_color):
+    x1, y1, x2, y2 = xy
+    draw.rounded_rectangle(xy, radius=8, outline=(17, 73, 128), width=1, fill=(6, 15, 27))
+    if kind == "branch":
+        draw_git_branch_icon(draw, x1 + 8, y1 + 15, accent)
+    else:
+        cx, cy = x1 + 18, y1 + 25
+        draw.ellipse((cx - 9, cy - 9, cx + 9, cy + 9), outline=accent, width=2)
+        draw.line((cx, cy - 5, cx, cy + 2, cx + 5, cy + 2), fill=accent, width=2)
+    label_font = font(12, True)
+    value_font = font(12, True)
+    text_x = x1 + 30
+    d_value = fit_text_end(draw, value, value_font, x2 - text_x - 7)
+    draw.text((text_x, y1 + 10), label, fill=sub_color, font=label_font)
+    draw.text((text_x, y1 + 28), d_value, fill=text_color, font=value_font)
+
+
 def render_github_screen(data, freshness_state, last_success_ts, output_path):
     is_offline = freshness_state == "offline"
     is_cached = freshness_state == "cached"
-    bg_color = (2, 8, 18, 255) if not is_offline else (3, 4, 6, 255)
-    border_color = (25, 172, 255) if not is_offline else (68, 72, 82)
+    is_stale = freshness_state == "stale"
+    has_activity = bool(data and (data.get("latest_message") or data.get("latest_sha") or data.get("last_push")))
+    bg_color = (7, 17, 31, 255) if not is_offline else (3, 4, 6, 255)
+    border_color = (20, 200, 244) if not is_offline else (68, 72, 82)
     text_color = (244, 247, 251)
-    sub_color = (174, 187, 210)
+    sub_color = (145, 160, 184)
     muted = (124, 136, 154)
-    cyan = (35, 218, 255)
+    cyan = (20, 200, 244)
+    divider_color = (39, 65, 94)
 
     img = Image.new("RGBA", (240, 240), bg_color)
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle((4, 4, 236, 236), radius=12, outline=border_color, width=2)
+    d.rounded_rectangle((5, 5, 235, 235), radius=12, outline=border_color, width=1)
     if is_cached:
         draw_hollow_status_dot(d, muted)
+    elif is_stale:
+        draw_status_dot(d, False, True)
     else:
         draw_status_dot(d, is_offline, False)
 
-    logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 34)
+    if is_offline and not has_activity:
+        logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 54)
+        if logo is not None:
+            img.alpha_composite(logo, ((240 - logo.width) // 2, 54))
+        title = "GitHub unavailable"
+        detail = "No recent activity"
+        title_font = font(16, True)
+        detail_font = font(13)
+        title_box = d.textbbox((0, 0), title, font=title_font)
+        detail_box = d.textbbox((0, 0), detail, font=detail_font)
+        d.text(((240 - (title_box[2] - title_box[0])) // 2, 123), title, fill=text_color, font=title_font)
+        d.text(((240 - (detail_box[2] - detail_box[0])) // 2, 149), detail, fill=sub_color, font=detail_font)
+        img.convert("RGB").save(output_path, "JPEG", quality=92)
+        return
+
+    logo = load_logo(resolve_asset_path(GITHUB_LOGO_NAME), 32)
     if logo is not None:
-        img.alpha_composite(logo, (18, 14))
+        img.alpha_composite(logo, (17, 16))
+
+    repo_label = data.get("display_label") or humanize_repo_name(data.get("repo") or data.get("repo_name") or "")
+    branch = data.get("branch") or "main"
+    repo_font = font(20, True)
+    branch_font = font(13)
+    d.text((58, 16), fit_text_middle(d, repo_label, repo_font, 144), fill=text_color, font=repo_font)
+    branch_icon = load_logo(resolve_asset_path(GIT_BRANCH_ICON_NAME), 20)
+    if branch_icon is not None:
+        img.alpha_composite(branch_icon, (60, 42))
+    d.text((88, 44), fit_text_middle(d, branch, branch_font, 112), fill=sub_color, font=branch_font)
 
     today = int(data.get("today_commits") or 0)
     commit_word = "commit" if today == 1 else "commits"
-    draw_git_branch_icon(d, 23, 58, cyan)
-    d.text((56, 58), "Today:", fill=sub_color, font=font(14, True))
-    d.text((108, 56), f"{today} {commit_word}", fill=text_color, font=font(18, True))
-
     last_age = format_short_age(data.get("last_push"))
     last_text = "now" if last_age == "now" else f"{last_age} ago"
-    d.ellipse((24, 91, 44, 111), outline=cyan, width=2)
-    d.line((34, 97, 34, 104, 39, 104), fill=cyan, width=2)
-    d.text((56, 91), "Last:", fill=sub_color, font=font(14, True))
-    d.text((98, 89), last_text, fill=text_color, font=font(18, True))
 
-    d.line((18, 122, 222, 122), fill=(17, 73, 128), width=2)
-    d.text((18, 134), "LATEST", fill=cyan, font=font(13, True))
+    stat_label_font = font(14, True)
+    stat_value_font = font(17, True)
+    stat_y = 76
+    left_x = 18
+    right_x = 138
+    value_y = stat_y + 22
+    left_value = fit_text_end(d, f"{today} {commit_word}", stat_value_font, 98)
+    right_value = fit_text_end(d, last_text, stat_value_font, 84)
+    d.text((left_x, stat_y), "Today:", fill=sub_color, font=stat_label_font)
+    d.text((left_x, value_y), left_value, fill=text_color, font=stat_value_font)
+    d.line((121, stat_y - 1, 121, 115), fill=divider_color, width=1)
+    d.text((right_x, stat_y), "Last:", fill=sub_color, font=stat_label_font)
+    d.text((right_x, value_y), right_value, fill=text_color, font=stat_value_font)
 
-    message_font = font(14, True)
-    message = fit_text_middle(d, data.get("latest_message") or "--", message_font, 210)
-    d.text((18, 153), message, fill=text_color, font=message_font)
+    d.line((18, 123, 222, 123), fill=divider_color, width=1)
 
-    sha = data.get("latest_sha") or "-------"
-    chip_y = 178
-    chip_font = font(14, True)
+    message_font = font(19, True)
+    lines = wrap_commit_message(d, data.get("latest_message") or "--", message_font, 204, 2)
+    y = 138
+    for line in lines:
+        d.text((18, y), line, fill=text_color, font=message_font)
+        y += 23
+
+    sha = str(data.get("latest_sha") or "-------")[:7]
+    chip_y = max(196, min(202, y + 8))
+    chip_font = mono_font(15, True)
     chip_box = d.textbbox((0, 0), sha, font=chip_font)
-    chip_w = min(92, chip_box[2] - chip_box[0] + 22)
-    d.rounded_rectangle((18, chip_y, 18 + chip_w, chip_y + 23), radius=7, fill=(15, 38, 69), outline=(25, 72, 121), width=1)
-    d.text((29, chip_y + 2), fit_text_middle(d, sha, chip_font, chip_w - 18), fill=(210, 224, 246), font=chip_font)
+    chip_w = min(96, chip_box[2] - chip_box[0] + 26)
+    chip_h = 24
+    d.rounded_rectangle((18, chip_y, 18 + chip_w, chip_y + chip_h), radius=8, fill=(7, 17, 31), outline=cyan, width=2)
+    fitted_sha = fit_text_end(d, sha, chip_font, chip_w - 18)
+    fitted_box = d.textbbox((0, 0), fitted_sha, font=chip_font)
+    fitted_w = fitted_box[2] - fitted_box[0]
+    fitted_h = fitted_box[3] - fitted_box[1]
+    fitted_x = 18 + (chip_w - fitted_w) // 2
+    fitted_y = chip_y + (chip_h - fitted_h) // 2 - fitted_box[1] - 1
+    d.text((fitted_x, fitted_y), fitted_sha, fill=cyan, font=chip_font)
 
-    repo_label = data.get("display_label") or humanize_repo_name(data.get("repo") or data.get("repo_name") or "")
-    repo_text = fit_text_middle(d, repo_label, font(13, True), 112)
-    updated_text = f"{format_age(last_success_ts) if last_success_ts else '--'}"
-    d.text((18, 211), repo_text, fill=sub_color, font=font(13, True))
-    updated_box = d.textbbox((0, 0), updated_text, font=font(12))
-    d.text((222 - (updated_box[2] - updated_box[0]), 212), updated_text, fill=muted, font=font(12))
+    updated_text = f"Updated {format_age(last_success_ts) if last_success_ts else '--'}"
+    updated_box = d.textbbox((0, 0), updated_text, font=font(11))
+    d.text((222 - (updated_box[2] - updated_box[0]), 216), updated_text, fill=sub_color, font=font(11))
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
