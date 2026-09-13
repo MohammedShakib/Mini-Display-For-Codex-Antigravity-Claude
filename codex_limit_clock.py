@@ -8,7 +8,7 @@ import ssl
 import struct
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib import request
 from urllib.parse import quote, urlparse
@@ -157,6 +157,7 @@ def load_cached_github_data(previous_state):
         "repo_name": gh_state.get("repo_name"),
         "branch": gh_state.get("branch") or "main",
         "today_commits": int(gh_state.get("today_commits") or 0),
+        "today_label": gh_state.get("today_label") or "commits",
         "open_prs": int(gh_state.get("open_prs") or 0),
         "last_push": gh_state.get("last_push"),
         "latest_sha": gh_state.get("latest_sha"),
@@ -431,6 +432,32 @@ def get_local_git_status():
     }
 
 
+def get_local_git_commit_summary():
+    try:
+        latest_sha = run_git(["rev-parse", "--short=7", "HEAD"])
+        latest_message = run_git(["log", "-1", "--pretty=%s"])
+        latest_author = run_git(["log", "-1", "--pretty=%an"])
+        latest_date = run_git(["log", "-1", "--pretty=%cI"])
+    except Exception:
+        latest_sha = ""
+        latest_message = "--"
+        latest_author = "--"
+        latest_date = None
+
+    try:
+        today_count = int(run_git(["rev-list", "--count", "--since=midnight", "HEAD"]) or 0)
+    except Exception:
+        today_count = 0
+
+    return {
+        "today_commits": today_count,
+        "latest_sha": latest_sha,
+        "latest_message": latest_message or "--",
+        "latest_author": latest_author or "--",
+        "latest_date": latest_date,
+    }
+
+
 def github_api_json(path_or_url, timeout=10):
     url = path_or_url if path_or_url.startswith("https://") else f"https://api.github.com{path_or_url}"
     req = request.Request(
@@ -447,6 +474,47 @@ def github_api_json(path_or_url, timeout=10):
 def iso_utc_from_local_midnight():
     local_midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     return local_midnight.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def github_contributions_today(user):
+    if not user:
+        return None
+    today = date.today()
+    url = (
+        f"https://github.com/users/{quote(user)}/contributions"
+        f"?from={today.isoformat()}&to={today.isoformat()}"
+    )
+    try:
+        html = request.urlopen(
+            request.Request(url, headers={"User-Agent": "SyncAI-Quota-Display"}),
+            timeout=10,
+        ).read().decode("utf-8", "ignore")
+    except Exception:
+        return None
+
+    date_pattern = re.escape(today.isoformat())
+    tooltip_match = re.search(
+        rf"data-date=\"{date_pattern}\".*?<tool-tip[^>]*>(.*?)</tool-tip>",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if tooltip_match:
+        label = re.sub(r"<[^>]+>", " ", tooltip_match.group(1))
+        count_match = re.search(r"(\d+)\s+contributions?", label, flags=re.IGNORECASE)
+        if count_match:
+            return int(count_match.group(1))
+        if re.search(r"no\s+contributions?", label, flags=re.IGNORECASE):
+            return 0
+
+    date_index = html.find(f'data-date="{today.isoformat()}"')
+    if date_index != -1:
+        snippet = html[max(0, date_index - 600):date_index + 1200]
+        count_match = re.search(r"(\d+)\s+contributions?", snippet, flags=re.IGNORECASE)
+        if count_match:
+            return int(count_match.group(1))
+        if re.search(r"no\s+contributions?", snippet, flags=re.IGNORECASE):
+            return 0
+    return None
 
 
 def github_user_from_repo(repo):
@@ -509,42 +577,70 @@ def latest_public_push_activity(user):
 
 def find_github_status(config):
     local = get_local_git_status()
+    local_commit = get_local_git_commit_summary()
     configured_repo = (config.get("github_repo") or "").strip()
     local_repo = local.get("repo") or ""
     configured_user = (config.get("github_user") or "").strip()
+    github_user = configured_user or github_user_from_repo(configured_repo or local_repo)
     activity = None
     if config.get("github_activity_enabled", True):
-        activity = latest_public_push_activity(configured_user or github_user_from_repo(configured_repo or local_repo))
+        activity = latest_public_push_activity(github_user)
 
     repo = (configured_repo or (activity or {}).get("repo") or local_repo or "").strip()
     branch = (config.get("github_branch") or (activity or {}).get("branch") or local.get("branch") or "main").strip()
     if not repo:
         raise RuntimeError("GitHub repository could not be detected from git remote origin")
 
-    repo_info = github_api_json(f"/repos/{repo}")
-    commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&per_page=5")
+    repo_info = {}
+    commits = []
+    today_commits = []
+    pulls = []
+    try:
+        repo_info = github_api_json(f"/repos/{repo}")
+    except Exception:
+        pass
+    try:
+        commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&per_page=5")
+    except Exception:
+        pass
     since = quote(iso_utc_from_local_midnight())
-    today_commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&since={since}&per_page=100")
-    pulls = github_api_json(f"/repos/{repo}/pulls?state=open&per_page=100")
+    try:
+        today_commits = github_api_json(f"/repos/{repo}/commits?sha={quote(branch)}&since={since}&per_page=100")
+    except Exception:
+        pass
+    try:
+        pulls = github_api_json(f"/repos/{repo}/pulls?state=open&per_page=100")
+    except Exception:
+        pass
 
     latest = commits[0] if commits else {}
     latest_commit = latest.get("commit") or {}
     latest_author = (latest.get("author") or {}).get("login") or (latest_commit.get("author") or {}).get("name")
-    latest_message = (latest_commit.get("message") or "").splitlines()[0]
+    latest_message = (latest_commit.get("message") or "").splitlines()[0] if latest_commit else ""
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
+    contributions_today = github_contributions_today(github_user)
+    repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
+    activity_today_count = (activity or {}).get("today_commits")
+    today_count = contributions_today
+    today_label = "commits"
+    if today_count is None:
+        today_count = int(activity_today_count or repo_today_count or local_commit.get("today_commits") or 0)
+        today_label = "commit" if today_count == 1 else "commits"
+    latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
     return {
-        "source": "github_activity" if activity else "github",
+        "source": "github_contributions" if contributions_today is not None else ("github_activity" if activity else "github"),
         "repo": repo,
         "display_label": display_label,
         "repo_name": repo.split("/", 1)[1] if "/" in repo else repo,
         "branch": branch,
-        "today_commits": int((activity or {}).get("today_commits") or (len(today_commits) if isinstance(today_commits, list) else 0)),
+        "today_commits": int(today_count or 0),
+        "today_label": today_label,
         "open_prs": len(pulls) if isinstance(pulls, list) else 0,
-        "last_push": (activity or {}).get("last_push") or repo_info.get("pushed_at"),
-        "latest_sha": (activity or {}).get("latest_sha") or (latest.get("sha") or "")[:7],
-        "latest_message": (activity or {}).get("latest_message") or latest_message or "--",
-        "latest_author": (activity or {}).get("latest_author") or latest_author or "--",
-        "latest_date": (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date"),
+        "last_push": (activity or {}).get("last_push") or repo_info.get("pushed_at") or local_commit.get("latest_date"),
+        "latest_sha": (activity or {}).get("latest_sha") or (latest.get("sha") or "")[:7] or local_commit.get("latest_sha"),
+        "latest_message": (activity or {}).get("latest_message") or latest_message or local_commit.get("latest_message") or "--",
+        "latest_author": (activity or {}).get("latest_author") or latest_author or local_commit.get("latest_author") or "--",
+        "latest_date": latest_date or local_commit.get("latest_date"),
         "local_dirty": bool(local.get("dirty")),
         "local_ahead": int(local.get("ahead") or 0),
         "local_behind": int(local.get("behind") or 0),
@@ -1632,7 +1728,11 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
     d.text((88, 44), fit_text_middle(d, branch, branch_font, 112), fill=sub_color, font=branch_font)
 
     today = int(data.get("today_commits") or 0)
-    commit_word = "commit" if today == 1 else "commits"
+    today_unit = (data.get("today_label") or "").strip()
+    if not today_unit:
+        today_unit = "commit" if today == 1 else "commits"
+    if today_unit == "contributions":
+        today_unit = "contrib" if today == 1 else "contribs"
     last_age = format_short_age(data.get("last_push"))
     last_text = "now" if last_age == "now" else f"{last_age} ago"
 
@@ -1642,7 +1742,7 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
     left_x = 18
     right_x = 138
     value_y = stat_y + 22
-    left_value = fit_text_end(d, f"{today} {commit_word}", stat_value_font, 98)
+    left_value = fit_text_end(d, f"{today} {today_unit}", stat_value_font, 98)
     right_value = fit_text_end(d, last_text, stat_value_font, 84)
     d.text((left_x, stat_y), "Today:", fill=sub_color, font=stat_label_font)
     d.text((left_x, value_y), left_value, fill=text_color, font=stat_value_font)
@@ -1660,11 +1760,11 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
         y += 23
 
     sha = str(data.get("latest_sha") or "-------")[:7]
-    chip_y = max(196, min(202, y + 8))
-    chip_font = mono_font(15, True)
+    chip_y = max(200, min(205, y + 12))
+    chip_font = mono_font(16, True)
     chip_box = d.textbbox((0, 0), sha, font=chip_font)
-    chip_w = min(96, chip_box[2] - chip_box[0] + 26)
-    chip_h = 24
+    chip_w = min(104, chip_box[2] - chip_box[0] + 28)
+    chip_h = 25
     d.rounded_rectangle((18, chip_y, 18 + chip_w, chip_y + chip_h), radius=8, fill=(7, 17, 31), outline=cyan, width=2)
     fitted_sha = fit_text_end(d, sha, chip_font, chip_w - 18)
     fitted_box = d.textbbox((0, 0), fitted_sha, font=chip_font)
@@ -1674,9 +1774,10 @@ def render_github_screen(data, freshness_state, last_success_ts, output_path):
     fitted_y = chip_y + (chip_h - fitted_h) // 2 - fitted_box[1] - 1
     d.text((fitted_x, fitted_y), fitted_sha, fill=cyan, font=chip_font)
 
+    updated_font = font(12)
     updated_text = f"Updated {format_age(last_success_ts) if last_success_ts else '--'}"
-    updated_box = d.textbbox((0, 0), updated_text, font=font(11))
-    d.text((222 - (updated_box[2] - updated_box[0]), 216), updated_text, fill=sub_color, font=font(11))
+    updated_box = d.textbbox((0, 0), updated_text, font=updated_font)
+    d.text((222 - (updated_box[2] - updated_box[0]), 215), updated_text, fill=sub_color, font=updated_font)
     img.convert("RGB").save(output_path, "JPEG", quality=92)
 
 
@@ -2273,6 +2374,7 @@ def main():
                 "repo_name": (last_github_data or {}).get("repo_name"),
                 "branch": (last_github_data or {}).get("branch"),
                 "today_commits": (last_github_data or {}).get("today_commits"),
+                "today_label": (last_github_data or {}).get("today_label"),
                 "open_prs": (last_github_data or {}).get("open_prs"),
                 "last_push": (last_github_data or {}).get("last_push"),
                 "latest_sha": (last_github_data or {}).get("latest_sha"),
