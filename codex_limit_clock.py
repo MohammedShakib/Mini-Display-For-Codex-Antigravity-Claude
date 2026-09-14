@@ -362,10 +362,10 @@ def ping_codex_quota(timeout=120):
     )
 
 
-def run_git(args, timeout=8):
+def run_git(args, timeout=8, cwd=None):
     proc = subprocess.run(
         ["git", *args],
-        cwd=str(BASE_DIR),
+        cwd=str(Path(cwd or BASE_DIR)),
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -394,16 +394,87 @@ def parse_github_repo(remote_url):
     return None
 
 
-def get_local_git_status():
-    branch = ""
+def git_root_for_path(path):
     try:
-        branch = run_git(["branch", "--show-current"]) or "main"
+        proc = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    root = proc.stdout.strip()
+    return Path(root) if root else None
+
+
+def extract_existing_paths_from_command_line(command_line):
+    if not command_line:
+        return []
+    candidates = []
+    quoted = re.findall(r'"([^"]+)"', command_line)
+    unquoted = re.findall(r"(?<![=\w])([A-Za-z]:\\[^\s\"]+)", command_line)
+    for raw in [*quoted[1:], *unquoted]:
+        try:
+            path = Path(raw)
+        except Exception:
+            continue
+        if path.exists() and path.is_dir():
+            candidates.append(path)
+    return candidates
+
+
+def active_editor_git_root():
+    script = (
+        "try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}; "
+        "Get-CimInstance Win32_Process | "
+        "Where-Object { ($_.Name -eq 'Code.exe' -or $_.Name -eq 'Cursor.exe') "
+        "-and $_.CommandLine -notmatch '--type=' } | "
+        "Sort-Object CreationDate -Descending | "
+        "Select-Object -ExpandProperty CommandLine | ConvertTo-Json -Compress"
+    )
+    try:
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=8,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return None
+    try:
+        command_lines = json.loads(proc.stdout)
+    except Exception:
+        return None
+    if isinstance(command_lines, str):
+        command_lines = [command_lines]
+    for command_line in command_lines or []:
+        for path in extract_existing_paths_from_command_line(command_line):
+            root = git_root_for_path(path)
+            if root:
+                return root
+    return None
+
+
+def get_local_git_status(repo_root=None):
+    branch = ""
+    cwd = repo_root or BASE_DIR
+    try:
+        branch = run_git(["branch", "--show-current"], cwd=cwd) or "main"
     except Exception:
         branch = "main"
 
     remote_repo = None
     try:
-        remote_repo = parse_github_repo(run_git(["remote", "get-url", "origin"]))
+        remote_repo = parse_github_repo(run_git(["remote", "get-url", "origin"], cwd=cwd))
     except Exception:
         pass
 
@@ -411,7 +482,7 @@ def get_local_git_status():
     ahead = 0
     behind = 0
     try:
-        status = run_git(["status", "--porcelain=v2", "--branch"])
+        status = run_git(["status", "--porcelain=v2", "--branch"], cwd=cwd)
         for line in status.splitlines():
             if line.startswith("# branch.ab"):
                 match = re.search(r"\+(\d+)\s+-(\d+)", line)
@@ -424,6 +495,7 @@ def get_local_git_status():
         pass
 
     return {
+        "root": str(cwd),
         "repo": remote_repo,
         "branch": branch,
         "dirty": dirty,
@@ -432,12 +504,13 @@ def get_local_git_status():
     }
 
 
-def get_local_git_commit_summary():
+def get_local_git_commit_summary(repo_root=None):
+    cwd = repo_root or BASE_DIR
     try:
-        latest_sha = run_git(["rev-parse", "--short=7", "HEAD"])
-        latest_message = run_git(["log", "-1", "--pretty=%s"])
-        latest_author = run_git(["log", "-1", "--pretty=%an"])
-        latest_date = run_git(["log", "-1", "--pretty=%cI"])
+        latest_sha = run_git(["rev-parse", "--short=7", "HEAD"], cwd=cwd)
+        latest_message = run_git(["log", "-1", "--pretty=%s"], cwd=cwd)
+        latest_author = run_git(["log", "-1", "--pretty=%an"], cwd=cwd)
+        latest_date = run_git(["log", "-1", "--pretty=%cI"], cwd=cwd)
     except Exception:
         latest_sha = ""
         latest_message = "--"
@@ -445,7 +518,7 @@ def get_local_git_commit_summary():
         latest_date = None
 
     try:
-        today_count = int(run_git(["rev-list", "--count", "--since=midnight", "HEAD"]) or 0)
+        today_count = int(run_git(["rev-list", "--count", "--since=midnight", "HEAD"], cwd=cwd) or 0)
     except Exception:
         today_count = 0
 
@@ -529,6 +602,8 @@ def humanize_repo_name(repo):
     words = name.split()
     if len(words) > 2:
         name = " ".join(words[:2])
+    if name.islower():
+        name = name.title()
     return name or "Repo"
 
 
@@ -550,10 +625,11 @@ def latest_public_push_activity(user):
             continue
         payload = event.get("payload") or {}
         commits = payload.get("commits") or []
-        if not commits:
+        head_sha = payload.get("head") or ""
+        if not commits and not head_sha:
             continue
         event_ts = parse_timestamp_epoch(event.get("created_at"))
-        if event_ts >= midnight_ts:
+        if commits and event_ts >= midnight_ts:
             today_count += len(commits)
         if latest is None:
             repo_name = (event.get("repo") or {}).get("name")
@@ -565,7 +641,7 @@ def latest_public_push_activity(user):
                 "repo": repo_name,
                 "branch": branch,
                 "last_push": event.get("created_at"),
-                "latest_sha": (commit.get("sha") or "")[:7],
+                "latest_sha": (commit.get("sha") or head_sha or "")[:7],
                 "latest_message": message[0] if message else "",
                 "latest_author": ((commit.get("author") or {}).get("name") or user),
             }
@@ -576,15 +652,24 @@ def latest_public_push_activity(user):
 
 
 def find_github_status(config):
-    local = get_local_git_status()
-    local_commit = get_local_git_commit_summary()
     configured_repo = (config.get("github_repo") or "").strip()
+    active_root = None if configured_repo else active_editor_git_root()
+    local = get_local_git_status(active_root)
+    local_commit = get_local_git_commit_summary(active_root)
     local_repo = local.get("repo") or ""
     configured_user = (config.get("github_user") or "").strip()
     github_user = configured_user or github_user_from_repo(configured_repo or local_repo)
     activity = None
     if config.get("github_activity_enabled", True):
         activity = latest_public_push_activity(github_user)
+
+    if activity and local_repo and activity.get("repo") == local_repo:
+        activity_ts = parse_timestamp_epoch(activity.get("last_push")) or 0
+        local_ts = parse_timestamp_epoch(local_commit.get("latest_date")) or 0
+        if local_ts and local_ts >= activity_ts:
+            activity["latest_sha"] = local_commit.get("latest_sha") or activity.get("latest_sha")
+            activity["latest_message"] = local_commit.get("latest_message") or activity.get("latest_message")
+            activity["latest_author"] = local_commit.get("latest_author") or activity.get("latest_author")
 
     repo = (configured_repo or (activity or {}).get("repo") or local_repo or "").strip()
     branch = (config.get("github_branch") or (activity or {}).get("branch") or local.get("branch") or "main").strip()
