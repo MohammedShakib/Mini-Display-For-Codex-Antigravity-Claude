@@ -428,7 +428,7 @@ def extract_existing_paths_from_command_line(command_line):
     return candidates
 
 
-def active_editor_git_root():
+def active_editor_git_roots():
     script = (
         "try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}; "
         "Get-CimInstance Win32_Process | "
@@ -447,21 +447,113 @@ def active_editor_git_root():
             timeout=8,
         )
     except Exception:
-        return None
+        return []
     if proc.returncode != 0 or not proc.stdout.strip():
-        return None
+        return []
     try:
         command_lines = json.loads(proc.stdout)
     except Exception:
-        return None
+        return []
     if isinstance(command_lines, str):
         command_lines = [command_lines]
+    roots = []
+    seen = set()
     for command_line in command_lines or []:
         for path in extract_existing_paths_from_command_line(command_line):
             root = git_root_for_path(path)
             if root:
-                return root
-    return None
+                key = str(root).lower()
+                if key not in seen:
+                    roots.append(root)
+                    seen.add(key)
+    return roots
+
+
+def active_editor_git_root():
+    roots = active_editor_git_roots()
+    return roots[0] if roots else None
+
+
+def scan_git_roots(base_path, max_depth=4, max_roots=40):
+    base = Path(base_path)
+    if not base.exists() or not base.is_dir():
+        return []
+    roots = []
+    base_parts = len(base.resolve().parts)
+    skip_names = {
+        ".git",
+        ".next",
+        ".venv",
+        "node_modules",
+        "dist",
+        "build",
+        "__pycache__",
+    }
+    for current, dirs, _files in os.walk(base):
+        current_path = Path(current)
+        depth = len(current_path.resolve().parts) - base_parts
+        if ".git" in dirs:
+            roots.append(current_path)
+            dirs[:] = []
+            if len(roots) >= max_roots:
+                break
+            continue
+        dirs[:] = [name for name in dirs if name not in skip_names]
+        if depth >= max_depth:
+            dirs[:] = []
+    return roots
+
+
+def candidate_git_roots():
+    roots = []
+    seen = set()
+
+    def add(root):
+        if not root:
+            return
+        try:
+            root = Path(root).resolve()
+        except Exception:
+            return
+        key = str(root).lower()
+        if key not in seen:
+            roots.append(root)
+            seen.add(key)
+
+    for root in active_editor_git_roots():
+        add(root)
+    add(BASE_DIR)
+
+    userprofile = Path(os.getenv("USERPROFILE", ""))
+    search_bases = [
+        Path("D:/projects"),
+        Path("D:/Projects"),
+        userprofile / "projects",
+        userprofile / "Projects",
+    ]
+    for base in search_bases:
+        for root in scan_git_roots(base):
+            add(root)
+
+    return roots
+
+
+def most_recent_local_github_repo():
+    best = None
+    for root in candidate_git_roots():
+        status = get_local_git_status(root)
+        if not status.get("repo"):
+            continue
+        commit = get_local_git_commit_summary(root)
+        ts = parse_timestamp_epoch(commit.get("latest_date")) or 0
+        if best is None or ts > best["timestamp"]:
+            best = {
+                "root": root,
+                "status": status,
+                "commit": commit,
+                "timestamp": ts,
+            }
+    return best
 
 
 def get_local_git_status(repo_root=None):
@@ -653,9 +745,10 @@ def latest_public_push_activity(user):
 
 def find_github_status(config):
     configured_repo = (config.get("github_repo") or "").strip()
-    active_root = None if configured_repo else active_editor_git_root()
-    local = get_local_git_status(active_root)
-    local_commit = get_local_git_commit_summary(active_root)
+    recent_local = None if configured_repo else most_recent_local_github_repo()
+    active_root = recent_local.get("root") if recent_local else None
+    local = recent_local.get("status") if recent_local else get_local_git_status(active_root)
+    local_commit = recent_local.get("commit") if recent_local else get_local_git_commit_summary(active_root)
     local_repo = local.get("repo") or ""
     configured_user = (config.get("github_user") or "").strip()
     github_user = configured_user or github_user_from_repo(configured_repo or local_repo)
