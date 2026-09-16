@@ -77,10 +77,10 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 | <img src="assets/preview_codex_240.jpg" width="220" alt="Codex Default" /> | <img src="assets/preview_antigravity_gemini_240.jpg" width="220" alt="Antigravity Gemini" /> | <img src="assets/preview_antigravity_claude_240.jpg" width="220" alt="Antigravity Claude" /> |
 | *5-Hour & Weekly meters with reset time* | *Real-time Gemini quota tracking* | *Real-time Claude / GPT quota tracking* |
 
-| **Orbital Rings (Futuristic Neon)** | **Warning Alert State (>80%)** | **Graceful Offline State** |
+| **GitHub Activity** | **Warning Alert State (>80%)** | **Graceful Offline State** |
 | :---: | :---: | :---: |
-| <img src="assets/theme_preview_orbital.jpg" width="220" alt="Orbital Theme" /> | <img src="assets/codex_usage_red_preview.jpg" width="220" alt="Red Warning UI" /> | <img src="assets/preview_antigravity_offline_240.jpg" width="220" alt="Offline Screen" /> |
-| *Concentric dual neon glowing arcs* | *Auto-switches to red warning palette* | *Prompts to open IDE; reverts in 10s* |
+| <img src="assets/preview_github_240.png" width="220" alt="GitHub Activity Screen" /> | <img src="assets/codex_usage_red_preview.jpg" width="220" alt="Red Warning UI" /> | <img src="assets/preview_antigravity_offline_240.jpg" width="220" alt="Offline Screen" /> |
+| *Commits, latest push, branch, and SHA* | *Auto-switches to red warning palette* | *Prompts to open IDE; reverts in 10s* |
 
 ---
 
