@@ -8,4 +8,7 @@ assets/live_screen.jpg
 temp_*.jpg
 *_test.jpg
 .vscode/
+/.env
+/.env.*
 /*_preview.jpg
+/*_preview*.png

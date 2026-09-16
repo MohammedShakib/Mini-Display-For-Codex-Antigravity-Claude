@@ -3,14 +3,14 @@
 <img src="assets/syncai_icon.png" width="96" alt="SyncAI Logo" style="border-radius: 20px; margin-bottom: 12px;" />
 
 # SyncAI AI Quota Display
-### Mini Display Dashboard for Codex, Antigravity & Claude/GPT
+### Mini Display Dashboard for Codex, Antigravity, GitHub & Claude/GPT
 
-**Real-time local AI quota tracking on a 240×240 Wi-Fi display — zero external API keys required.**
+**Real-time local AI quota and GitHub activity tracking on a 240×240 Wi-Fi display — no paid AI API keys required.**
 
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Flask Dashboard](https://img.shields.io/badge/Dashboard-Flask%20%7C%20Port%205050-000000?style=for-the-badge&logo=flask&logoColor=white)](http://localhost:5050)
-[![Zero API Keys](https://img.shields.io/badge/Security-Zero%20External%20API%20Keys-10B981?style=for-the-badge&logo=shield&logoColor=white)](#data-sources--security)
+[![Optional GitHub Token](https://img.shields.io/badge/Security-Optional%20GitHub%20Token-10B981?style=for-the-badge&logo=shield&logoColor=white)](#data-sources--security)
 [![Display](https://img.shields.io/badge/Display-240%C3%97240%20IPS-F59E0B?style=for-the-badge&logo=espressif&logoColor=white)](#hardware--clock-setup)
 
 <br/>
@@ -36,6 +36,7 @@
 - [Quick Start](#-quick-start)
 - [Web Control Dashboard](#-web-control-dashboard)
 - [Configuration Guide (`config.json`)](#-configuration-guide-configjson)
+- [Data Sources & Security](#data-sources--security)
 - [Windows Background Service & Auto-Start](#-windows-background-service--auto-start)
 - [Hardware & Clock Setup](#-hardware--clock-setup)
 - [Project File Structure](#-project-file-structure)
@@ -46,10 +47,11 @@
 
 ## 🌟 Overview
 
-**SyncAI AI Quota Display** connects your local AI developer workflow directly to a physical 240×240 Wi-Fi display sitting on your desk. It continuously monitors your active AI rate limits without needing any paid OpenAI or Google Cloud API tokens:
+**SyncAI AI Quota Display** connects your local AI developer workflow directly to a physical 240×240 Wi-Fi display sitting on your desk. It continuously monitors your active AI rate limits without needing any paid OpenAI or Google Cloud API tokens, and can optionally show your GitHub project activity:
 
 - **OpenAI Codex**: Tracks 5-hour rolling session limits, weekly limits, and countdown to reset.
 - **Google Antigravity IDE**: Live quota metrics and reset timestamps for both **Gemini** and **Claude / GPT** models extracted directly via the IDE's local gRPC server.
+- **GitHub Activity**: Tracks recent repository activity, today's commits, latest SHA/message, branch, push time, and open pull request count using local Git plus the GitHub API.
 - **Smart Rotation & Alerting**: Rotates between displays, auto-detects whichever model you are actively using, and triggers a high-visibility warning theme whenever usage exceeds your alert threshold (default: 80%).
 
 ---
@@ -60,7 +62,7 @@
   <img src="assets/architecture_syncai.png" width="100%" alt="SyncAI local architecture diagram" />
 </p>
 
-1. **Zero External API Cost**: Queries only local artifacts already running on your machine.
+1. **Zero External AI API Cost**: Queries local AI artifacts already running on your machine. GitHub activity works with public data by default and can use an optional read-only GitHub token for private repositories.
 2. **Deterministic Refresh**: Renders crisp 240×240 JPEGs with antialiasing and sub-pixel glyph rendering.
 3. **Instant Network Delivery**: Transmits rendered frames directly over your local Wi-Fi to the clock's built-in photo display server.
 
@@ -84,8 +86,8 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 
 ## ✨ Key Features
 
-- 🔒 **Zero API Keys & 100% Privacy-First**  
-  No OpenAI API key, no Google Cloud project, and no credit card required. SyncAI inspects local session JSONL logs and queries the local Antigravity Language Server via local loopback gRPC (`127.0.0.1`).
+- 🔒 **No Paid AI API Keys & Privacy-First Defaults**  
+  No OpenAI API key, no Google Cloud project, and no credit card required. SyncAI inspects local session JSONL logs and queries the local Antigravity Language Server via local loopback gRPC (`127.0.0.1`). GitHub integration can run from public data, with an optional read-only token for private repository activity.
 - 🤖 **Intelligent Active Model Auto-Detection**  
   Automatically identifies whether you are prompting Gemini or Claude/GPT in Antigravity IDE by reading the active transcript change-events. The clock switches dynamically to the model you are actually using.
 - 🕒 **Stale Reset Recovery**  
@@ -96,6 +98,8 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
   Set your alert limit (default `80%`). As soon as your 5H or Weekly limit hits the threshold, the display shifts into an unmistakable neon crimson warning theme.
 - 🌐 **Modern Glassmorphism Web Dashboard**  
   Control everything from your browser at `http://localhost:5050`. Features live screen mirroring, one-click manual sync, rotation sliders, model selectors, and instant theme switching.
+- 🧭 **GitHub Project Activity**  
+  Adds repository activity to the clock rotation without changing your AI quota screens. SyncAI detects active local GitHub repos from common `projects` folders and supplements them with GitHub API data for pushes, commits, branches, latest SHA/message, and open PR count.
 - 🔀 **Dual Visual Themes**  
   Choose between the clean, ultra-readable **Default Obsidian** theme or the futuristic **Orbital Rings** concentric dual-arc theme.
 - 🥷 **Stealth Windows Background Service**  
@@ -110,6 +114,8 @@ SyncAI includes meticulously designed 240×240 UI themes tailored specifically f
 - **Local Tools**:
   - OpenAI Codex CLI or extension installed and logged in locally
   - [Google Antigravity IDE](https://antigravity.google/) (installed and running)
+  - Git installed locally for repository detection
+  - Optional: a read-only GitHub fine-grained personal access token for private repository activity
 - **Hardware**: ESP8266 / ESP32-based 240×240 Smart Weather Clock connected to the same Wi-Fi router.
 
 ---
@@ -145,7 +151,43 @@ Open `config.json` and set your clock's local Wi-Fi IP address:
 > [!TIP]
 > Not sure what IP your clock has? Check your router's client list or the clock's initial setup screen at `http://192.168.4.1/`.
 
-### 3. Run a Single Test Upload
+### 3. Optional: Enable Private GitHub Activity
+
+Public GitHub activity works without a token. To include private repositories you own or can read, create a fine-grained GitHub personal access token with read-only repository access:
+
+- **Repository access**: All repositories, or only the repositories you want on the display.
+- **Repository permissions**: `Contents: Read-only`.
+- **Optional repository permissions**: `Pull requests: Read-only` if you want open PR counts for private repositories.
+
+Store the token as a Windows user environment variable. Do not put it in `config.json`, README files, screenshots, or commit history.
+
+```powershell
+$secure = Read-Host "Paste GitHub token" -AsSecureString
+$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+
+try {
+  $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  [Environment]::SetEnvironmentVariable("SYNCAI_GITHUB_TOKEN", $plain, "User")
+  $env:SYNCAI_GITHUB_TOKEN = $plain
+  python -c "import codex_limit_clock as c; print('token_present=', bool(c.github_api_token())); print('github_user=', c.github_api_json('/user').get('login'))"
+}
+finally {
+  if ($bstr -ne [IntPtr]::Zero) {
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+  Remove-Variable plain -ErrorAction SilentlyContinue
+  Remove-Variable secure -ErrorAction SilentlyContinue
+}
+```
+
+Expected verification:
+
+```text
+token_present= True
+github_user= YOUR_GITHUB_USERNAME
+```
+
+### 4. Run a Single Test Upload
 
 Verify your clock connection and rendering:
 
@@ -153,13 +195,13 @@ Verify your clock connection and rendering:
 python .\codex_limit_clock.py --clock-ip 192.168.0.58 --loop 0
 ```
 
-### 4. Start the Continuous Loop
+### 5. Start the Continuous Loop
 
 ```powershell
 python .\codex_limit_clock.py --clock-ip 192.168.0.58 --loop 30
 ```
 
-### 5. Launch the Web Dashboard
+### 6. Launch the Web Dashboard
 
 In a separate terminal (or run as background service):
 
@@ -201,6 +243,56 @@ The running loop hot-reloads `config.json` automatically on every iteration.
 | `selected_theme` | `string` | `"default"` | Visual theme ID: `"default"` (Obsidian cards) or `"orbital"` (Dual Neon Rings). |
 | `codex_ping_enabled` | `boolean` | `true` | Runs a tiny periodic Codex prompt so this PC receives a fresh account-level quota snapshot. |
 | `codex_ping_interval_minutes` | `integer` | `30` | Minimum minutes between Codex quota pings. Each ping consumes a small amount of Codex quota. |
+| `github_enabled` | `boolean` | `true` | Enables the GitHub activity screen in the rotation. |
+| `github_display_seconds` | `integer` | `15` | Duration the GitHub screen remains visible. |
+| `github_refresh_interval_minutes` | `integer` | `1` | Minimum minutes between GitHub status refreshes. |
+| `github_repo` | `string` | `""` | Optional fixed repo in `owner/name` form. Leave empty to auto-detect recent local/GitHub activity. |
+| `github_branch` | `string` | `""` | Optional branch override. Leave empty to use detected branch or `main`. |
+| `github_label` | `string` | `""` | Optional short display label for the GitHub screen. |
+| `github_activity_enabled` | `boolean` | `true` | Allows account-level GitHub event lookup in addition to local repo scanning. |
+| `github_user` | `string` | `""` | Optional GitHub username override. Leave empty to infer it from the detected repo owner. |
+
+---
+
+## Data Sources & Security
+
+SyncAI is designed to keep secrets out of the repository and out of generated runtime state.
+
+### Codex
+
+- Reads local Codex JSONL session files under `~/.codex/sessions`.
+- Uses a tiny optional Codex CLI ping to refresh local rate-limit snapshots.
+- Does not require an OpenAI API key.
+
+### Antigravity
+
+- Reads live quota data from the local Antigravity IDE language server on `127.0.0.1`.
+- Falls back to Windows UI Automation only when the IDE settings page is visible.
+- CSRF tokens are discovered from local process command lines only for the local gRPC call and are not saved to runtime state.
+
+### GitHub
+
+- Scans local Git repositories from active editor roots and common project folders such as `D:\Projects`, `D:\projects`, `%USERPROFILE%\Projects`, and `%USERPROFILE%\projects`.
+- Reads public GitHub activity without a token.
+- Uses `SYNCAI_GITHUB_TOKEN` when present, falling back to `GITHUB_TOKEN` if set.
+- The token is sent only as an `Authorization: Bearer ...` header to `https://api.github.com`.
+- The token is never written to `config.json`, `runtime/runtime_state.json`, log files, or display images.
+- `.env` and `.env.*` are ignored so accidental local token files are not committed.
+
+Fine-grained token guidance:
+
+- Token name: `SyncAI Quota Display`
+- Description: `Read-only token for SyncAI Quota Display to fetch GitHub repository activity, commits, branches, pull requests, and recent contribution data for the local mini display dashboard. No write access.`
+- Repository access: `All repositories`, or only the repositories you want displayed.
+- Required permission: `Contents: Read-only`
+- Optional permission: `Pull requests: Read-only`
+
+Scope notes:
+
+- Your own private repositories work when the fine-grained token has access to them.
+- Public repositories work through public GitHub API data.
+- Private repositories owned by another user or organization require a token that has access to that owner/repository.
+- Non-GitHub remotes such as GitLab or Bitbucket are not tracked by the GitHub card.
 
 ---
 
@@ -320,6 +412,22 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
   ```powershell
   Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
   ```
+
+### 5. GitHub Shows "No Activity Today"
+- Confirm the current runtime state:
+  ```powershell
+  python -c "import json; s=json.load(open('runtime/runtime_state.json')); print(json.dumps(s.get('github', {}), indent=2))"
+  ```
+- If private repositories are missing, verify the token is available without printing the token itself:
+  ```powershell
+  python -c "import codex_limit_clock as c; print('token_present=', bool(c.github_api_token())); print('github_user=', c.github_api_json('/user').get('login'))"
+  ```
+- If you generated a token after the hidden loop was already running, restart the loop so the process inherits the new environment variable:
+  ```powershell
+  Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+  wscript.exe ".\start_codex_limit_clock_hidden.vbs"
+  ```
+- GitHub contribution graphs may show `0` for commits that do not count toward public contributions. SyncAI also checks repository commits and local Git history so pushed repo activity can still appear on the clock.
 
 ---
 

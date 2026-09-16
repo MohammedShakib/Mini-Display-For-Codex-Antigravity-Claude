@@ -623,14 +623,23 @@ def get_local_git_commit_summary(repo_root=None):
     }
 
 
+def github_api_token():
+    return (os.getenv("SYNCAI_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN") or "").strip()
+
+
 def github_api_json(path_or_url, timeout=10):
     url = path_or_url if path_or_url.startswith("https://") else f"https://api.github.com{path_or_url}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "SyncAI-Quota-Display",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = github_api_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     req = request.Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "SyncAI-Quota-Display",
-        },
+        headers=headers,
     )
     with request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -703,9 +712,13 @@ def latest_public_push_activity(user):
     if not user:
         return None
     try:
-        events = github_api_json(f"/users/{quote(user)}/events/public?per_page=30")
+        endpoint = f"/users/{quote(user)}/events?per_page=30" if github_api_token() else f"/users/{quote(user)}/events/public?per_page=30"
+        events = github_api_json(endpoint)
     except Exception:
-        return None
+        try:
+            events = github_api_json(f"/users/{quote(user)}/events/public?per_page=30")
+        except Exception:
+            return None
     if not isinstance(events, list):
         return None
 
@@ -798,11 +811,14 @@ def find_github_status(config):
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
     contributions_today = github_contributions_today(github_user)
     repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
-    activity_today_count = (activity or {}).get("today_commits")
-    today_count = contributions_today
-    today_label = "commits"
-    if today_count is None:
-        today_count = int(activity_today_count or repo_today_count or local_commit.get("today_commits") or 0)
+    activity_today_count = int((activity or {}).get("today_commits") or 0)
+    local_today_count = int(local_commit.get("today_commits") or 0)
+    commit_today_count = max(activity_today_count, repo_today_count, local_today_count)
+    if contributions_today is not None and contributions_today > commit_today_count:
+        today_count = int(contributions_today)
+        today_label = "contribution" if today_count == 1 else "contributions"
+    else:
+        today_count = int(commit_today_count)
         today_label = "commit" if today_count == 1 else "commits"
     latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
     return {
