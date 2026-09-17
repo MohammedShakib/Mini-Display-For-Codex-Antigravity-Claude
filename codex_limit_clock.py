@@ -777,10 +777,16 @@ def find_github_status(config):
             activity["latest_message"] = local_commit.get("latest_message") or activity.get("latest_message")
             activity["latest_author"] = local_commit.get("latest_author") or activity.get("latest_author")
 
-    repo = (configured_repo or (activity or {}).get("repo") or local_repo or "").strip()
-    branch = (config.get("github_branch") or (activity or {}).get("branch") or local.get("branch") or "main").strip()
+    local_ts = parse_timestamp_epoch(local_commit.get("latest_date")) or 0
+    activity_ts = parse_timestamp_epoch((activity or {}).get("last_push")) or 0
+    use_activity_repo = bool(activity and (not local_repo or activity_ts > local_ts))
+    detected_repo = (activity or {}).get("repo") if use_activity_repo else local_repo
+    detected_branch = (activity or {}).get("branch") if use_activity_repo else local.get("branch")
+    repo = (configured_repo or detected_repo or "").strip()
+    branch = (config.get("github_branch") or detected_branch or "main").strip()
     if not repo:
         raise RuntimeError("GitHub repository could not be detected from git remote origin")
+    selected_activity = activity if activity and activity.get("repo") == repo else None
 
     repo_info = {}
     commits = []
@@ -811,7 +817,7 @@ def find_github_status(config):
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
     contributions_today = github_contributions_today(github_user)
     repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
-    activity_today_count = int((activity or {}).get("today_commits") or 0)
+    activity_today_count = int((selected_activity or {}).get("today_commits") or 0)
     local_today_count = int(local_commit.get("today_commits") or 0)
     commit_today_count = max(activity_today_count, repo_today_count, local_today_count)
     if contributions_today is not None and contributions_today > commit_today_count:
@@ -822,7 +828,7 @@ def find_github_status(config):
         today_label = "commit" if today_count == 1 else "commits"
     latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
     return {
-        "source": "github_contributions" if contributions_today is not None else ("github_activity" if activity else "github"),
+        "source": "github_contributions" if contributions_today is not None else ("github_activity" if selected_activity else "github"),
         "repo": repo,
         "display_label": display_label,
         "repo_name": repo.split("/", 1)[1] if "/" in repo else repo,
@@ -830,10 +836,10 @@ def find_github_status(config):
         "today_commits": int(today_count or 0),
         "today_label": today_label,
         "open_prs": len(pulls) if isinstance(pulls, list) else 0,
-        "last_push": (activity or {}).get("last_push") or repo_info.get("pushed_at") or local_commit.get("latest_date"),
-        "latest_sha": (activity or {}).get("latest_sha") or (latest.get("sha") or "")[:7] or local_commit.get("latest_sha"),
-        "latest_message": (activity or {}).get("latest_message") or latest_message or local_commit.get("latest_message") or "--",
-        "latest_author": (activity or {}).get("latest_author") or latest_author or local_commit.get("latest_author") or "--",
+        "last_push": (selected_activity or {}).get("last_push") or repo_info.get("pushed_at") or local_commit.get("latest_date"),
+        "latest_sha": (selected_activity or {}).get("latest_sha") or (latest.get("sha") or "")[:7] or local_commit.get("latest_sha"),
+        "latest_message": (selected_activity or {}).get("latest_message") or latest_message or local_commit.get("latest_message") or "--",
+        "latest_author": (selected_activity or {}).get("latest_author") or latest_author or local_commit.get("latest_author") or "--",
         "latest_date": latest_date or local_commit.get("latest_date"),
         "local_dirty": bool(local.get("dirty")),
         "local_ahead": int(local.get("ahead") or 0),
