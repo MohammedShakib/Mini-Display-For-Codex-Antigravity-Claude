@@ -282,7 +282,7 @@ SyncAI is designed to keep secrets out of the repository and out of generated ru
 Fine-grained token guidance:
 
 - Token name: `SyncAI Quota Display`
-- Description: `Read-only token for SyncAI Quota Display to fetch GitHub repository activity, commits, branches, pull requests, and recent contribution data for the local mini display dashboard. No write access.`
+- Description: `Read-only token for SyncAI Quota Display to fetch GitHub repository activity, commits, branches, and pull requests for the local mini display dashboard. No write access.`
 - Repository access: `All repositories`, or only the repositories you want displayed.
 - Required permission: `Contents: Read-only`
 - Optional permission: `Pull requests: Read-only`
@@ -427,7 +427,7 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
   Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
   wscript.exe ".\start_codex_limit_clock_hidden.vbs"
   ```
-- GitHub contribution graphs may show `0` for commits that do not count toward public contributions. SyncAI also checks repository commits and local Git history so pushed repo activity can still appear on the clock.
+- The GitHub card's `Today` count intentionally uses repository push-visible commit activity, not the profile contribution graph, so forgotten-push days can still show `No activity today`.
 
 ---
 

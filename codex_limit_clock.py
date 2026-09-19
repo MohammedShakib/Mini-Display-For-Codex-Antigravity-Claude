@@ -815,20 +815,13 @@ def find_github_status(config):
     latest_author = (latest.get("author") or {}).get("login") or (latest_commit.get("author") or {}).get("name")
     latest_message = (latest_commit.get("message") or "").splitlines()[0] if latest_commit else ""
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
-    contributions_today = github_contributions_today(github_user)
     repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
     activity_today_count = int((selected_activity or {}).get("today_commits") or 0)
-    local_today_count = int(local_commit.get("today_commits") or 0)
-    commit_today_count = max(activity_today_count, repo_today_count, local_today_count)
-    if contributions_today is not None and contributions_today > commit_today_count:
-        today_count = int(contributions_today)
-        today_label = "contribution" if today_count == 1 else "contributions"
-    else:
-        today_count = int(commit_today_count)
-        today_label = "commit" if today_count == 1 else "commits"
+    today_count = int(max(activity_today_count, repo_today_count))
+    today_label = "commit" if today_count == 1 else "commits"
     latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
     return {
-        "source": "github_contributions" if contributions_today is not None else ("github_activity" if selected_activity else "github"),
+        "source": "github_activity" if selected_activity else "github",
         "repo": repo,
         "display_label": display_label,
         "repo_name": repo.split("/", 1)[1] if "/" in repo else repo,
