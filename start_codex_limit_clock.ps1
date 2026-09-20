@@ -20,9 +20,17 @@ if (-not $CreatedNew) {
 
 while ($true) {
     try {
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
         & $Python -u $Script --clock-ip $ClockIp --loop 30 *>> $Log
+        $ErrorActionPreference = $previousPreference
+        if ($LASTEXITCODE -ne 0) {
+            "$(Get-Date -Format s) python exited with code $LASTEXITCODE; restarting in 30s" | Out-File -FilePath $Log -Append -Encoding utf8
+            Start-Sleep -Seconds 30
+        }
     }
     catch {
+        $ErrorActionPreference = "Stop"
         "$(Get-Date -Format s) launcher error: $($_.Exception.Message)" | Out-File -FilePath $Log -Append -Encoding utf8
         Start-Sleep -Seconds 30
     }

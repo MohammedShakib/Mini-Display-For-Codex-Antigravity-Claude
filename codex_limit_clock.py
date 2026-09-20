@@ -357,6 +357,8 @@ def ping_codex_quota(timeout=120):
         input=CODEX_PING_PROMPT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         check=True,
     )
@@ -368,6 +370,8 @@ def run_git(args, timeout=8, cwd=None):
         cwd=str(Path(cwd or BASE_DIR)),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     if proc.returncode != 0:
@@ -850,6 +854,8 @@ def powershell_json(script, timeout=10):
         ["powershell", "-NoProfile", "-Command", script],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     if proc.returncode != 0:
@@ -1129,6 +1135,8 @@ $rows | ConvertTo-Json -Compress -Depth 3
         ["powershell", "-NoProfile", "-Command", script],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=12,
     )
     if proc.returncode != 0:
