@@ -627,6 +627,33 @@ def get_local_git_commit_summary(repo_root=None):
     }
 
 
+def get_local_git_upstream_today_count(repo_root=None):
+    cwd = repo_root or BASE_DIR
+    try:
+        upstream = run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], cwd=cwd)
+    except Exception:
+        return 0
+    if not upstream:
+        return 0
+    try:
+        return int(run_git(["rev-list", "--count", "--since=midnight", upstream], cwd=cwd) or 0)
+    except Exception:
+        return 0
+
+
+def local_pushed_github_commit_total_today():
+    total = 0
+    seen = set()
+    for root in candidate_git_roots():
+        status = get_local_git_status(root)
+        repo = status.get("repo")
+        if not repo or repo in seen:
+            continue
+        seen.add(repo)
+        total += get_local_git_upstream_today_count(root)
+    return total
+
+
 def github_api_token():
     return (os.getenv("SYNCAI_GITHUB_TOKEN") or os.getenv("GITHUB_TOKEN") or "").strip()
 
@@ -851,7 +878,8 @@ def find_github_status(config):
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
     repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
     activity_today_count = int((activity or {}).get("today_commits") or 0)
-    today_count = int(max(activity_today_count, repo_today_count))
+    local_pushed_today_count = local_pushed_github_commit_total_today()
+    today_count = int(max(activity_today_count, repo_today_count, local_pushed_today_count))
     today_label = "commit" if today_count == 1 else "commits"
     latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
     return {
