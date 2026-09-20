@@ -427,7 +427,7 @@ The target device is a standard **ESP8266/ESP32 240×240 Smart Weather Clock**:
   Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'codex_limit_clock.py' -or $_.CommandLine -match 'start_codex_limit_clock.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
   wscript.exe ".\start_codex_limit_clock_hidden.vbs"
   ```
-- The GitHub card's `Today` count intentionally uses repository push-visible commit activity, not the profile contribution graph, so forgotten-push days can still show `No activity today`.
+- The GitHub card's `Today` count uses push-visible commit activity across the user's recent GitHub repositories, not the profile contribution graph, so forgotten-push days can still show `No activity today`.
 
 ---
 

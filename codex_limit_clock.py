@@ -712,48 +712,78 @@ def humanize_repo_name(repo):
     return name or "Repo"
 
 
+def github_push_commit_count(payload, commits=None):
+    commits = commits if commits is not None else (payload.get("commits") or [])
+    for key in ("distinct_size", "size"):
+        try:
+            count = int(payload.get(key) or 0)
+        except Exception:
+            count = 0
+        if count > 0:
+            return count
+    return len(commits)
+
+
 def latest_public_push_activity(user):
     if not user:
-        return None
-    try:
-        endpoint = f"/users/{quote(user)}/events?per_page=30" if github_api_token() else f"/users/{quote(user)}/events/public?per_page=30"
-        events = github_api_json(endpoint)
-    except Exception:
-        try:
-            events = github_api_json(f"/users/{quote(user)}/events/public?per_page=30")
-        except Exception:
-            return None
-    if not isinstance(events, list):
         return None
 
     midnight_ts = parse_timestamp_epoch(iso_utc_from_local_midnight())
     today_count = 0
     latest = None
-    for event in events:
-        if event.get("type") != "PushEvent":
+    saw_events = False
+    private_endpoint = bool(github_api_token())
+
+    for public_only in ([False, True] if private_endpoint else [True]):
+        base_endpoint = f"/users/{quote(user)}/events{'/public' if public_only else ''}?per_page=100"
+        try:
+            for page in range(1, 4):
+                events = github_api_json(f"{base_endpoint}&page={page}")
+                if not isinstance(events, list):
+                    break
+                if not events:
+                    break
+                saw_events = True
+                reached_yesterday = False
+                for event in events:
+                    event_ts = parse_timestamp_epoch(event.get("created_at")) or 0
+                    if event_ts and event_ts < midnight_ts:
+                        reached_yesterday = True
+
+                    if event.get("type") != "PushEvent":
+                        continue
+                    payload = event.get("payload") or {}
+                    commits = payload.get("commits") or []
+                    head_sha = payload.get("head") or ""
+                    if not commits and not head_sha:
+                        continue
+                    if event_ts >= midnight_ts:
+                        today_count += github_push_commit_count(payload, commits)
+                    if latest is None:
+                        repo_name = (event.get("repo") or {}).get("name")
+                        ref = payload.get("ref") or ""
+                        branch = ref.replace("refs/heads/", "") if ref.startswith("refs/heads/") else ref or "main"
+                        commit = commits[-1] if commits else {}
+                        message = (commit.get("message") or "").splitlines()
+                        latest = {
+                            "repo": repo_name,
+                            "branch": branch,
+                            "last_push": event.get("created_at"),
+                            "latest_sha": (commit.get("sha") or head_sha or "")[:7],
+                            "latest_message": message[0] if message else "",
+                            "latest_author": ((commit.get("author") or {}).get("name") or user),
+                        }
+                if reached_yesterday:
+                    break
+            if saw_events:
+                break
+        except Exception:
+            if public_only:
+                return None
+            today_count = 0
+            latest = None
+            saw_events = False
             continue
-        payload = event.get("payload") or {}
-        commits = payload.get("commits") or []
-        head_sha = payload.get("head") or ""
-        if not commits and not head_sha:
-            continue
-        event_ts = parse_timestamp_epoch(event.get("created_at"))
-        if commits and event_ts >= midnight_ts:
-            today_count += len(commits)
-        if latest is None:
-            repo_name = (event.get("repo") or {}).get("name")
-            ref = payload.get("ref") or ""
-            branch = ref.replace("refs/heads/", "") if ref.startswith("refs/heads/") else ref or "main"
-            commit = commits[-1] if commits else {}
-            message = (commit.get("message") or "").splitlines()
-            latest = {
-                "repo": repo_name,
-                "branch": branch,
-                "last_push": event.get("created_at"),
-                "latest_sha": (commit.get("sha") or head_sha or "")[:7],
-                "latest_message": message[0] if message else "",
-                "latest_author": ((commit.get("author") or {}).get("name") or user),
-            }
 
     if latest:
         latest["today_commits"] = today_count
@@ -820,7 +850,7 @@ def find_github_status(config):
     latest_message = (latest_commit.get("message") or "").splitlines()[0] if latest_commit else ""
     display_label = (config.get("github_label") or humanize_repo_name(repo)).strip()
     repo_today_count = len(today_commits) if isinstance(today_commits, list) else 0
-    activity_today_count = int((selected_activity or {}).get("today_commits") or 0)
+    activity_today_count = int((activity or {}).get("today_commits") or 0)
     today_count = int(max(activity_today_count, repo_today_count))
     today_label = "commit" if today_count == 1 else "commits"
     latest_date = (latest_commit.get("committer") or latest_commit.get("author") or {}).get("date") if latest_commit else None
