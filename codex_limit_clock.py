@@ -16,6 +16,7 @@ from urllib.parse import quote, urlparse
 from PIL import Image, ImageDraw, ImageFont
 
 from theme_renderer import render_custom_theme
+from openai_quota import get_status as get_openai_quota_status, render_screen as render_openai_quota_screen
 
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -77,6 +78,15 @@ def load_config():
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
+        "openai_quota": {
+            "enabled": False,
+            "organization_id": "",
+            "tracked_api_key_id": "",
+            "daily_quota": 2500000,
+            "refresh_interval_seconds": 300,
+            "timezone": "Asia/Dhaka",
+            "rotation_enabled": True,
+        },
     }
     if CONFIG_PATH.exists():
         try:
@@ -2192,6 +2202,9 @@ def run_screen(
             data.get("weekly_reset"),
         )
         summary = f"{screen_name} cached"
+    elif screen_name == "openai_api":
+        render_openai_quota_screen(data_state.get("openai_quota") or {}, dash_temp_path)
+        summary = "openai api quota"
     elif screen_name == "github":
         render_github_screen(
             data_state["github"]["data"] or {},
@@ -2457,6 +2470,8 @@ def page_display_seconds(page_name, config, fallback_interval):
         return max(5, int(config.get("github_display_seconds", fallback_interval)))
     if page_name.startswith("ag_"):
         return max(5, int(config.get("antigravity_display_seconds", fallback_interval)))
+    if page_name == "openai_api":
+        return max(5, int(config.get("openai_display_seconds", 10)))
     return max(5, int(config.get("codex_display_seconds", fallback_interval)))
 
 
@@ -2489,6 +2504,8 @@ def main():
     last_github_time = float((previous_state.get("github") or {}).get("last_time") or 0)
     last_github_fetch_time = float((previous_state.get("github") or {}).get("last_fetch_time") or 0)
     last_github_status = (previous_state.get("github") or {}).get("last_status") or "never"
+    last_openai_data = previous_state.get("openai_quota") or None
+    last_openai_fetch_time = float((last_openai_data or {}).get("last_sync") or 0)
     page_index = 0
     is_first_run = True
 
@@ -2505,6 +2522,7 @@ def main():
         codex_ping_interval = max(5, int(config.get("codex_ping_interval_minutes", 30)))
         github_enabled = bool(config.get("github_enabled", True))
         github_refresh_interval = max(1, int(config.get("github_refresh_interval_minutes", 5)))
+        openai_config = config.get("openai_quota") or {}
         codex_account_email = get_codex_account_email() or codex_account_email
 
         try:
@@ -2557,6 +2575,13 @@ def main():
                     last_github_status = "ok"
             except Exception as exc:
                 last_github_status = f"error: {str(exc)[:240]}"
+
+        openai_enabled = bool(openai_config.get("enabled", False) and openai_config.get("rotation_enabled", True))
+        if openai_enabled and (not last_openai_fetch_time or time.time() - last_openai_fetch_time >= max(60, int(openai_config.get("refresh_interval_seconds", 300)))):
+            last_openai_data = get_openai_quota_status(config)
+            last_openai_fetch_time = float((last_openai_data or {}).get("last_sync") or last_openai_fetch_time)
+        elif openai_enabled:
+            last_openai_data = get_openai_quota_status(config)
             
         codex_state = get_freshness_state(last_codex_time, CODEX_STALE_LIMIT_MINUTES)
         if codex_state == "offline" and last_codex_data:
@@ -2593,6 +2618,9 @@ def main():
                 active_pages.append("github")
             else:
                 active_pages.append("github_offline")
+
+        if openai_enabled:
+            active_pages.append("openai_api")
             
         if not active_pages:
             active_pages = ["codex_offline"]
@@ -2607,6 +2635,7 @@ def main():
             "github_label": config.get("github_label") or "GitHub",
             "codex_account_email": codex_account_email,
             "codex_account_name": codex_account_display_name(codex_account_email),
+            "openai_quota": last_openai_data or get_openai_quota_status(config),
         }
 
         # Save runtime state for the local web dashboard
@@ -2667,6 +2696,7 @@ def main():
                 "local_behind": (last_github_data or {}).get("local_behind"),
             },
             "config": config,
+            "openai_quota": data_state.get("openai_quota"),
         })
         
         try:

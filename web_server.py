@@ -26,6 +26,7 @@ def read_config():
         "antigravity_display_seconds": 15,
         "github_enabled": True,
         "github_display_seconds": 15,
+        "openai_display_seconds": 10,
         "github_refresh_interval_minutes": 1,
         "github_repo": "",
         "github_branch": "",
@@ -35,6 +36,11 @@ def read_config():
         "selected_theme": "default",
         "codex_ping_enabled": True,
         "codex_ping_interval_minutes": 30,
+        "openai_quota": {
+            "enabled": False, "organization_id": "", "tracked_api_key_id": "",
+            "daily_quota": 2500000, "refresh_interval_seconds": 300,
+            "timezone": "Asia/Dhaka", "rotation_enabled": True,
+        },
     }
     if CONFIG_PATH.exists():
         try:
@@ -142,6 +148,20 @@ def config_endpoint():
             updated["codex_ping_enabled"] = bool(payload["codex_ping_enabled"])
         if "codex_ping_interval_minutes" in payload:
             updated["codex_ping_interval_minutes"] = max(5, int(payload["codex_ping_interval_minutes"]))
+        if "openai_quota" in payload and isinstance(payload["openai_quota"], dict):
+            current_quota = (read_config().get("openai_quota") or {}).copy()
+            incoming = payload["openai_quota"]
+            for key in ("enabled", "rotation_enabled"):
+                if key in incoming:
+                    current_quota[key] = bool(incoming[key])
+            for key in ("organization_id", "tracked_api_key_id", "timezone"):
+                if key in incoming:
+                    current_quota[key] = str(incoming[key]).strip()
+            if "daily_quota" in incoming:
+                current_quota["daily_quota"] = max(1, int(incoming["daily_quota"]))
+            if "refresh_interval_seconds" in incoming:
+                current_quota["refresh_interval_seconds"] = max(60, int(incoming["refresh_interval_seconds"]))
+            updated["openai_quota"] = current_quota
 
         saved = write_config(updated)
         return jsonify({"status": "ok", "config": saved})

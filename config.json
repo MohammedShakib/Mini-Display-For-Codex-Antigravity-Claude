@@ -9,6 +9,7 @@
   "antigravity_display_seconds": 15,
   "github_enabled": true,
   "github_display_seconds": 15,
+  "openai_display_seconds": 10,
   "github_refresh_interval_minutes": 1,
   "github_repo": "",
   "github_branch": "",
@@ -17,5 +18,14 @@
   "github_user": "",
   "selected_theme": "default",
   "codex_ping_enabled": true,
-  "codex_ping_interval_minutes": 30
+  "codex_ping_interval_minutes": 30,
+  "openai_quota": {
+    "enabled": true,
+    "organization_id": "org-kDW0CAXmvniOjX4PPQBifh8X",
+    "tracked_api_key_id": "key_ONBtKckOYFWD7A17",
+    "daily_quota": 2500000,
+    "refresh_interval_seconds": 300,
+    "timezone": "Asia/Dhaka",
+    "rotation_enabled": true
+  }
 }

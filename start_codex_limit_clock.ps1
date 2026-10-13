@@ -9,6 +9,8 @@ $ClockIp = "192.168.0.58"
 
 Set-Location $Root
 New-Item -ItemType Directory -Path $Runtime -Force | Out-Null
+# Load the user-scoped Admin key for the hidden scheduled launcher without writing it to disk or logs.
+$env:OPENAI_ADMIN_KEY = [Environment]::GetEnvironmentVariable("OPENAI_ADMIN_KEY", "User")
 
 $MutexName = "Global\SyncAI_CodexLimitClock"
 $CreatedNew = $false
